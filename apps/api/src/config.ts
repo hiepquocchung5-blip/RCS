@@ -1,0 +1,39 @@
+import { loadDotEnv } from "./env.js";
+
+export interface ApiConfig {
+  /** Port the API listens on. */
+  port: number;
+  /** Public base URL of this API (used in emails/magic links). */
+  apiBaseUrl: string;
+  /** Secret shared with RCS-CLI for bridge-token verification. */
+  jwtSecret: string;
+  /** Redis connection for OTPs (5-min TTL) and future pub/sub; null = in-memory dev fallback. */
+  redisUrl: string | null;
+  /** PostgreSQL connection for entity storage; null = in-memory dev fallback. */
+  databaseUrl: string | null;
+  /** Browser origins allowed by CORS (comma-separated in RCS_WEB_ORIGIN). */
+  webOrigins: string[];
+  isProduction: boolean;
+}
+
+export function loadConfig(): ApiConfig {
+  loadDotEnv();
+  const isProduction = process.env.NODE_ENV === "production";
+  const jwtSecret = process.env.RCS_JWT_SECRET ?? "rcs-dev-secret-change-me";
+  if (isProduction && jwtSecret === "rcs-dev-secret-change-me") {
+    throw new Error("RCS_JWT_SECRET must be set in production");
+  }
+  const port = Number(process.env.PORT ?? 4000);
+  return {
+    port,
+    apiBaseUrl: process.env.RCS_API_BASE_URL ?? `http://localhost:${port}`,
+    jwtSecret,
+    redisUrl: process.env.REDIS_URL ?? null,
+    databaseUrl: process.env.DATABASE_URL ?? null,
+    webOrigins: (process.env.RCS_WEB_ORIGIN ?? "http://localhost:3000")
+      .split(",")
+      .map((origin) => origin.trim())
+      .filter((origin) => origin.length > 0),
+    isProduction,
+  };
+}

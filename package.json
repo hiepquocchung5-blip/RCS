@@ -1,0 +1,26 @@
+{
+  "name": "risecorestudio",
+  "private": true,
+  "version": "0.1.0",
+  "description": "RiseCoreStudio (RCS) — internal agency Dev Hub & CMS monorepo",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web -c cyan,magenta \"npm run dev -w apps/api\" \"npm run dev -w apps/web\"",
+    "dev:web": "npm run dev -w apps/web",
+    "dev:api": "npm run dev -w apps/api",
+    "rcs-cli": "npm run start -w packages/rcs-cli",
+    "build": "npm run build -w packages/shared && npm run build -w apps/api && npm run build -w packages/rcs-cli && npm run build -w apps/web",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.8.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

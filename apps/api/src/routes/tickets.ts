@@ -1,0 +1,76 @@
+import { Router, type Response } from "express";
+import { isRole, isTicketStatus } from "@rcs/shared";
+import type { ApiConfig } from "../config.js";
+import type { Store } from "../store.js";
+import { requireAuth, requireRole, type AuthedRequest } from "../middleware.js";
+
+export function ticketRoutes(config: ApiConfig, store: Store): Router {
+  const router = Router();
+  router.use(requireAuth(config.jwtSecret));
+
+  router.get("/", (_req: AuthedRequest, res: Response) => {
+    res.json({ tickets: store.listTickets() });
+  });
+
+  router.post(
+    "/",
+    requireRole("admin", "pm"),
+    (req: AuthedRequest, res: Response) => {
+      const body = req.body as Record<string, unknown>;
+      const title = body["title"];
+      const description = body["description"];
+      const assigneeRole = body["assigneeRole"];
+      const projectId = body["projectId"];
+      if (
+        typeof title !== "string" ||
+        title.length === 0 ||
+        typeof description !== "string" ||
+        typeof assigneeRole !== "string" ||
+        !isRole(assigneeRole) ||
+        typeof projectId !== "string" ||
+        projectId.length === 0
+      ) {
+        res.status(400).json({
+          error: "title, description, assigneeRole and projectId are required",
+        });
+        return;
+      }
+      const ticket = store.createTicket({
+        title,
+        description,
+        assigneeRole,
+        projectId,
+      });
+      store.log(
+        "user",
+        "ticket_created",
+        `${req.session?.email ?? "unknown"} created ${ticket.ref}: ${ticket.title}`,
+      );
+      res.status(201).json({ ticket });
+    },
+  );
+
+  /** Single-step, deterministic transition; illegal moves are refused. */
+  router.post("/:id/transition", (req: AuthedRequest, res: Response) => {
+    const id = req.params.id;
+    const body = req.body as Record<string, unknown>;
+    const to = body["to"];
+    if (id === undefined || typeof to !== "string" || !isTicketStatus(to)) {
+      res.status(400).json({ error: "ticket id and target status are required" });
+      return;
+    }
+    const result = store.transitionTicket(id, to);
+    if (!result.ok) {
+      res.status(409).json({ error: result.error });
+      return;
+    }
+    store.log(
+      "user",
+      "ticket_transitioned",
+      `${req.session?.email ?? "unknown"} moved ${result.ticket.ref} to ${to}`,
+    );
+    res.json({ ticket: result.ticket });
+  });
+
+  return router;
+}

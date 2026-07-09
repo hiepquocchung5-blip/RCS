@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+/* Rise Dark design system (see PROTOTYPE.md) */
+@theme {
+  --color-rise-bg: #0f111a;
+  --color-rise-surface: #1a1d27;
+  --color-rise-surface-2: #232736;
+  --color-rise-border: #2b3040;
+  --color-rise-text: #d6dae6;
+  --color-rise-muted: #8b91a7;
+  --color-rise-accent: #00f0ff;
+  --color-rise-success: #39ff14;
+  --color-rise-error: #ff3333;
+  --color-rise-warning: #ffc400;
+  --font-mono: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, monospace;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background-color: var(--color-rise-bg);
+  color: var(--color-rise-text);
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-rise-accent) 30%, transparent);
+}
+
+/* thin scrollbars that fit the dense workspace */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-rise-border) transparent;
+}
