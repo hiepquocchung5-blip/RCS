@@ -8,12 +8,12 @@ export function adminRoutes(config: ApiConfig, store: Store): Router {
   const router = Router();
   router.use(requireAuth(config.jwtSecret), requireRole("admin"));
 
-  router.get("/applications", (_req: AuthedRequest, res: Response) => {
-    res.json({ applications: store.listApplications() });
+  router.get("/applications", async (_req: AuthedRequest, res: Response) => {
+    res.json({ applications: await store.listApplications() });
   });
 
-  router.get("/users", (_req: AuthedRequest, res: Response) => {
-    res.json({ users: store.listUsers() });
+  router.get("/users", async (_req: AuthedRequest, res: Response) => {
+    res.json({ users: await store.listUsers() });
   });
 
   /**
@@ -21,13 +21,13 @@ export function adminRoutes(config: ApiConfig, store: Store): Router {
    * application, the Onboarding Agent generates the 16-character credential
    * and a one-time magic link that delivers it.
    */
-  router.post("/applications/:id/approve", (req: AuthedRequest, res: Response) => {
+  router.post("/applications/:id/approve", async (req: AuthedRequest, res: Response) => {
     const id = req.params.id;
     if (id === undefined) {
       res.status(400).json({ error: "application id required" });
       return;
     }
-    const application = store.getApplication(id);
+    const application = await store.getApplication(id);
     if (application === undefined) {
       res.status(404).json({ error: "application not found" });
       return;
@@ -39,16 +39,16 @@ export function adminRoutes(config: ApiConfig, store: Store): Router {
       return;
     }
     const password = generatePassword();
-    const { passwordHash: _passwordHash, ...user } = store.createUser({
+    const { passwordHash: _passwordHash, ...user } = await store.createUser({
       email: application.email,
       name: application.name,
       role: application.requestedRole,
       skillLevel: application.skillLevel,
       password,
     });
-    store.setApplicationStatus(id, "approved");
-    const link = store.createMagicLink(user.id, password);
-    store.log(
+    await store.setApplicationStatus(id, "approved");
+    const link = await store.createMagicLink(user.id, password);
+    await store.log(
       "onboarding-agent",
       "application_approved",
       `Application ${id} approved; 16-char credential generated for ${user.email}; magic link issued`,
@@ -59,18 +59,18 @@ export function adminRoutes(config: ApiConfig, store: Store): Router {
     });
   });
 
-  router.post("/applications/:id/reject", (req: AuthedRequest, res: Response) => {
+  router.post("/applications/:id/reject", async (req: AuthedRequest, res: Response) => {
     const id = req.params.id;
     if (id === undefined) {
       res.status(400).json({ error: "application id required" });
       return;
     }
-    const updated = store.setApplicationStatus(id, "rejected");
+    const updated = await store.setApplicationStatus(id, "rejected");
     if (updated === undefined) {
       res.status(404).json({ error: "application not found" });
       return;
     }
-    store.log("onboarding-agent", "application_rejected", `Application ${id} rejected`);
+    await store.log("onboarding-agent", "application_rejected", `Application ${id} rejected`);
     res.json({ application: updated });
   });
 

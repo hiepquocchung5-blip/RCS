@@ -255,11 +255,13 @@ export interface ChatMessage {
 export interface ChatJoinedMessage {
   type: "chat:joined";
   channel: string;
+  code?: number;
 }
 
 export interface ChatErrorMessage {
   type: "chat:error";
   message: string;
+  code?: number;
 }
 
 export type ChatServerMessage = ChatMessage | ChatJoinedMessage | ChatErrorMessage;
@@ -301,10 +303,18 @@ export function parseChatServerMessage(raw: string): ChatServerMessage | null {
     };
   }
   if (msg["type"] === "chat:joined" && typeof msg["channel"] === "string") {
-    return { type: "chat:joined", channel: msg["channel"] };
+    return {
+      type: "chat:joined",
+      channel: msg["channel"],
+      code: typeof msg["code"] === "number" ? msg["code"] : undefined,
+    };
   }
   if (msg["type"] === "chat:error" && typeof msg["message"] === "string") {
-    return { type: "chat:error", message: msg["message"] };
+    return {
+      type: "chat:error",
+      message: msg["message"],
+      code: typeof msg["code"] === "number" ? msg["code"] : undefined,
+    };
   }
   return null;
 }

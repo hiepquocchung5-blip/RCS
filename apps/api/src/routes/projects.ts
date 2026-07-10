@@ -42,27 +42,31 @@ export function projectRoutes(config: ApiConfig, store: Store): Router {
   const router = Router();
   router.use(requireAuth(config.jwtSecret));
 
-  router.get("/", (req: AuthedRequest, res: Response) => {
+  router.get("/", async (req: AuthedRequest, res: Response) => {
     const session = req.session;
     if (session === undefined) {
       res.status(401).json({ error: "unauthenticated" });
       return;
     }
     const isLead = session.role === "admin" || session.role === "pm";
-    const projects = store
-      .listProjects()
-      .filter((project) => isLead || store.isOnTeam(project.id, session.sub));
+    const allProjects = await store.listProjects();
+    const projects = [];
+    for (const project of allProjects) {
+      if (isLead || (await store.isOnTeam(project.id, session.sub))) {
+        projects.push(project);
+      }
+    }
     res.json({ projects });
   });
 
-  router.get("/:id", (req: AuthedRequest, res: Response) => {
+  router.get("/:id", async (req: AuthedRequest, res: Response) => {
     const id = req.params.id;
     const session = req.session;
     if (id === undefined || session === undefined) {
       res.status(400).json({ error: "project id is required" });
       return;
     }
-    const project = store.getProject(id);
+    const project = await store.getProject(id);
     if (project === undefined) {
       res.status(404).json({ error: "project not found" });
       return;
@@ -70,7 +74,7 @@ export function projectRoutes(config: ApiConfig, store: Store): Router {
     const allowed =
       session.role === "admin" ||
       session.role === "pm" ||
-      store.isOnTeam(id, session.sub);
+      (await store.isOnTeam(id, session.sub));
     if (!allowed) {
       res.status(403).json({ error: "project membership required" });
       return;
@@ -82,7 +86,7 @@ export function projectRoutes(config: ApiConfig, store: Store): Router {
   router.post(
     "/",
     requireRole("admin", "pm"),
-    (req: AuthedRequest, res: Response) => {
+    async (req: AuthedRequest, res: Response) => {
       const body = req.body as Record<string, unknown>;
       const name = body["name"];
       const type = body["type"];
@@ -107,7 +111,7 @@ export function projectRoutes(config: ApiConfig, store: Store): Router {
         });
         return;
       }
-      const project = store.createProject({
+      const project = await store.createProject({
         name: name.trim(),
         type,
         description,
@@ -116,7 +120,7 @@ export function projectRoutes(config: ApiConfig, store: Store): Router {
         techStack,
         resourceMatrix: matrix,
       });
-      store.log(
+      await store.log(
         "user",
         "project_created",
         `${req.session?.email ?? "unknown"} scoped project "${project.name}" (${project.type}) with ${matrix.length} matrix rows`,
@@ -128,19 +132,19 @@ export function projectRoutes(config: ApiConfig, store: Store): Router {
   router.post(
     "/:id/delivery",
     requireRole("admin", "pm"),
-    (req: AuthedRequest, res: Response) => {
+    async (req: AuthedRequest, res: Response) => {
       const id = req.params.id;
       const parsed = projectDeliverySchema.safeParse(req.body);
       if (id === undefined || !parsed.success) {
         res.status(400).json(parsed.success ? { error: "project id required" } : validationError(parsed.error));
         return;
       }
-      const project = store.updateProjectDelivery(id, parsed.data);
+      const project = await store.updateProjectDelivery(id, parsed.data);
       if (project === undefined) {
         res.status(404).json({ error: "project not found" });
         return;
       }
-      store.log("user", "project_delivery_updated", `${req.session?.email ?? "unknown"} updated delivery health for "${project.name}"`);
+      await store.log("user", "project_delivery_updated", `${req.session?.email ?? "unknown"} updated delivery health for "${project.name}"`);
       res.json({ project });
     },
   );
@@ -148,19 +152,19 @@ export function projectRoutes(config: ApiConfig, store: Store): Router {
   router.post(
     "/:id/milestones",
     requireRole("admin", "pm"),
-    (req: AuthedRequest, res: Response) => {
+    async (req: AuthedRequest, res: Response) => {
       const id = req.params.id;
       const parsed = milestoneSchema.safeParse(req.body);
       if (id === undefined || !parsed.success) {
         res.status(400).json(parsed.success ? { error: "project id required" } : validationError(parsed.error));
         return;
       }
-      const milestone = store.createMilestone(id, parsed.data.title, parsed.data.dueDate);
+      const milestone = await store.createMilestone(id, parsed.data.title, parsed.data.dueDate);
       if (milestone === undefined) {
         res.status(404).json({ error: "project not found" });
         return;
       }
-      store.log("user", "milestone_created", `${req.session?.email ?? "unknown"} added milestone "${milestone.title}"`);
+      await store.log("user", "milestone_created", `${req.session?.email ?? "unknown"} added milestone "${milestone.title}"`);
       res.status(201).json({ milestone });
     },
   );
@@ -169,20 +173,20 @@ export function projectRoutes(config: ApiConfig, store: Store): Router {
   router.get(
     "/:id/candidates",
     requireRole("admin", "pm"),
-    (req: AuthedRequest, res: Response) => {
+    async (req: AuthedRequest, res: Response) => {
       const id = req.params.id;
-      if (id === undefined || store.getProject(id) === undefined) {
+      if (id === undefined || (await store.getProject(id)) === undefined) {
         res.status(404).json({ error: "project not found" });
         return;
       }
-      res.json({ candidates: store.candidatesFor(id) });
+      res.json({ candidates: await store.candidatesFor(id) });
     },
   );
 
   router.post(
     "/:id/team",
     requireRole("admin", "pm"),
-    (req: AuthedRequest, res: Response) => {
+    async (req: AuthedRequest, res: Response) => {
       const id = req.params.id;
       const body = req.body as Record<string, unknown>;
       const userId = body["userId"];
@@ -190,13 +194,13 @@ export function projectRoutes(config: ApiConfig, store: Store): Router {
         res.status(400).json({ error: "project id and userId are required" });
         return;
       }
-      const result = store.assignTeamMember(id, userId);
+      const result = await store.assignTeamMember(id, userId);
       if (!result.ok) {
         res.status(409).json({ error: result.error });
         return;
       }
       const member = result.project.team[result.project.team.length - 1];
-      store.log(
+      await store.log(
         "user",
         "team_member_assigned",
         `${req.session?.email ?? "unknown"} assigned ${member?.name ?? userId} (${member?.skillLevel ?? "?"} ${member?.role ?? "?"}) to "${result.project.name}"`,
@@ -206,7 +210,7 @@ export function projectRoutes(config: ApiConfig, store: Store): Router {
   );
 
   /** Team-managed tech stack: team members, PMs and admins may edit it. */
-  router.post("/:id/tech", (req: AuthedRequest, res: Response) => {
+  router.post("/:id/tech", async (req: AuthedRequest, res: Response) => {
     const id = req.params.id;
     const session = req.session;
     const body = req.body as Record<string, unknown>;
@@ -216,7 +220,7 @@ export function projectRoutes(config: ApiConfig, store: Store): Router {
       res.status(400).json({ error: "project id and add or remove are required" });
       return;
     }
-    const project = store.getProject(id);
+    const project = await store.getProject(id);
     if (project === undefined) {
       res.status(404).json({ error: "project not found" });
       return;
@@ -224,17 +228,17 @@ export function projectRoutes(config: ApiConfig, store: Store): Router {
     const allowed =
       session.role === "admin" ||
       session.role === "pm" ||
-      store.isOnTeam(id, session.sub);
+      (await store.isOnTeam(id, session.sub));
     if (!allowed) {
       res.status(403).json({ error: "only the project team, PMs or admins manage the tech stack" });
       return;
     }
-    const updated = store.updateTechStack(id, { add, remove });
+    const updated = await store.updateTechStack(id, { add, remove });
     if (updated === undefined) {
       res.status(404).json({ error: "project not found" });
       return;
     }
-    store.log(
+    await store.log(
       "user",
       "tech_stack_updated",
       `${session.email} ${add !== undefined ? `added "${add}" to` : `removed "${remove ?? ""}" from`} the "${updated.name}" tech stack`,

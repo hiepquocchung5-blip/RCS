@@ -32,9 +32,44 @@ export function ChatPanel({ channel, label }: { channel: string; label: string }
         setMessages((prev) => [...prev, parsed]);
       } else if (parsed?.type === "chat:error") {
         setConnected(false);
+        setMessages((prev) => [
+          ...prev,
+          {
+            type: "chat:message",
+            channel,
+            author: "System Error",
+            body: `${parsed.message} (Code: ${parsed.code ?? "unknown"})`,
+            sentAt: new Date().toISOString(),
+          },
+        ]);
       }
     };
-    socket.onclose = () => setConnected(false);
+    socket.onclose = (event: CloseEvent) => {
+      setConnected(false);
+      if (event.code === 4401) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            type: "chat:message",
+            channel,
+            author: "System Error",
+            body: "Chat session is unauthorized. Please log in again.",
+            sentAt: new Date().toISOString(),
+          },
+        ]);
+      } else if (event.code === 4403) {
+        setMessages((prev) => [
+          ...prev,
+          {
+            type: "chat:message",
+            channel,
+            author: "System Error",
+            body: "You do not have permission to join this channel.",
+            sentAt: new Date().toISOString(),
+          },
+        ]);
+      }
+    };
     socket.onerror = () => setConnected(false);
     return () => socket.close();
     // eslint-disable-next-line react-hooks/exhaustive-deps

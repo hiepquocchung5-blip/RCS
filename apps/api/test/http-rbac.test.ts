@@ -28,12 +28,14 @@ function bearer(user: { id: string; email: string; role: "admin" | "pm" | "front
 
 test("project and ticket routes enforce portfolio roles and team membership", async () => {
   const store = new Store(secret);
-  const admin = store.createUser({ email: "admin@test.dev", name: "Admin", role: "admin", skillLevel: "senior", password: "Admin!Password12" });
-  const assigned = store.createUser({ email: "assigned@test.dev", name: "Assigned", role: "frontend", skillLevel: "mid", password: "Assign!Password1" });
-  const outsider = store.createUser({ email: "outside@test.dev", name: "Outsider", role: "backend", skillLevel: "mid", password: "Outsid!Password1" });
-  const project = store.createProject({ name: "Secure", type: "web_app", description: "Private project", clientName: "Client", isPublic: false, techStack: [], resourceMatrix: [{ role: "frontend", skillLevel: "mid", count: 1 }] });
-  assert.equal(store.assignTeamMember(project.id, assigned.id).ok, true);
-  const ticket = store.createTicket({ title: "Private ticket", description: "Only the team", assigneeRole: "frontend", projectId: project.id });
+  const admin = await store.createUser({ email: "admin@test.dev", name: "Admin", role: "admin", skillLevel: "senior", password: "Admin!Password12" });
+  const assigned = await store.createUser({ email: "assigned@test.dev", name: "Assigned", role: "frontend", skillLevel: "mid", password: "Assign!Password1" });
+  const outsider = await store.createUser({ email: "outside@test.dev", name: "Outsider", role: "backend", skillLevel: "mid", password: "Outsid!Password1" });
+  const project = await store.createProject({ name: "Secure", type: "web_app", description: "Private project", clientName: "Client", isPublic: false, techStack: [], resourceMatrix: [{ role: "frontend", skillLevel: "mid", count: 1 }] });
+  
+  const assignResult = await store.assignTeamMember(project.id, assigned.id);
+  assert.equal(assignResult.ok, true);
+  const ticket = await store.createTicket({ title: "Private ticket", description: "Only the team", assigneeRole: "frontend", projectId: project.id });
 
   const app = express();
   app.use(express.json());
@@ -49,25 +51,32 @@ test("project and ticket routes enforce portfolio roles and team membership", as
   assert.equal((await request(app).post(`/tickets/${ticket.id}/transition`).set("authorization", bearer(assigned)).send({ to: "in_progress" })).status, 200);
 });
 
-test("stored credentials are hashed and opaque magic links are one-time", () => {
+test("stored credentials are hashed and opaque magic links are one-time", async () => {
   const store = new Store(secret);
   const raw = "Secure!Password1";
-  const user = store.createUser({ email: "secure@test.dev", name: "Secure", role: "frontend", skillLevel: "mid", password: raw });
+  const user = await store.createUser({ email: "secure@test.dev", name: "Secure", role: "frontend", skillLevel: "mid", password: raw });
   assert.notEqual(user.passwordHash, raw);
   assert.ok(user.passwordHash.startsWith("scrypt$"));
-  assert.equal(store.authenticateUser(user.email, raw)?.id, user.id);
-  const link = store.createMagicLink(user.id, raw);
+  
+  const authenticatedUser = await store.authenticateUser(user.email, raw);
+  assert.equal(authenticatedUser?.id, user.id);
+  
+  const link = await store.createMagicLink(user.id, raw);
   assert.equal("password" in link, false);
-  assert.equal(store.consumeMagicLink(link.token)?.password, raw);
-  assert.equal(store.consumeMagicLink(link.token), undefined);
+  
+  const consumedMagic = await store.consumeMagicLink(link.token);
+  assert.equal(consumedMagic?.password, raw);
+  
+  const consumedMagic2 = await store.consumeMagicLink(link.token);
+  assert.equal(consumedMagic2, undefined);
 });
 
 test("GitHub webhook requires a valid signature and rejects replay", async () => {
   const webhookSecret = "github-test-secret";
   const webhookConfig = { ...config, githubWebhookSecret: webhookSecret };
   const store = new Store(secret);
-  const project = store.createProject({ name: "Webhook", type: "web_app", description: "Webhook project", clientName: "Client", isPublic: false, techStack: [], resourceMatrix: [] });
-  const ticket = store.createTicket({ title: "Merge work", description: "PR integration", assigneeRole: "backend", projectId: project.id });
+  const project = await store.createProject({ name: "Webhook", type: "web_app", description: "Webhook project", clientName: "Client", isPublic: false, techStack: [], resourceMatrix: [] });
+  const ticket = await store.createTicket({ title: "Merge work", description: "PR integration", assigneeRole: "backend", projectId: project.id });
   const body = { action: "closed", pull_request: { merged: true, title: `${ticket.ref} ship integration` } };
   const raw = JSON.stringify(body);
   const signature = `sha256=${createHmac("sha256", webhookSecret).update(raw).digest("hex")}`;

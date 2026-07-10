@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import type { Role, SkillLevel } from "@rcs/shared";
 import { Store } from "../src/store.js";
 
-function user(store: Store, name: string, role: Role, skillLevel: SkillLevel) {
-  return store.createUser({
+async function user(store: Store, name: string, role: Role, skillLevel: SkillLevel) {
+  return await store.createUser({
     email: `${name}@rcs.dev`,
     name,
     role,
@@ -13,8 +13,8 @@ function user(store: Store, name: string, role: Role, skillLevel: SkillLevel) {
   });
 }
 
-function makeProject(store: Store) {
-  return store.createProject({
+async function makeProject(store: Store) {
+  return await store.createProject({
     name: "atlas",
     type: "web_app",
     description: "d",
@@ -28,52 +28,63 @@ function makeProject(store: Store) {
   });
 }
 
-test("candidates match unfilled matrix seats only", () => {
+test("candidates match unfilled matrix seats only", async () => {
   const store = new Store();
-  const project = makeProject(store);
-  const seniorBackend = user(store, "sb", "backend", "senior");
-  user(store, "jf1", "frontend", "junior");
-  user(store, "if1", "frontend", "intern"); // no intern seat
-  user(store, "sd1", "devops", "senior"); // no devops seat
-  user(store, "pm1", "pm", "senior"); // PMs are not matrix resources
+  const project = await makeProject(store);
+  const seniorBackend = await user(store, "sb", "backend", "senior");
+  await user(store, "jf1", "frontend", "junior");
+  await user(store, "if1", "frontend", "intern"); // no intern seat
+  await user(store, "sd1", "devops", "senior"); // no devops seat
+  await user(store, "pm1", "pm", "senior"); // PMs are not matrix resources
 
-  const names = store.candidatesFor(project.id).map((c) => c.name).sort();
+  const candidates = await store.candidatesFor(project.id);
+  const names = candidates.map((c) => c.name).sort();
   assert.deepEqual(names, ["jf1", "sb"]);
 
   // Filling the senior backend seat removes matching candidates.
-  const assigned = store.assignTeamMember(project.id, seniorBackend.id);
+  const assigned = await store.assignTeamMember(project.id, seniorBackend.id);
   assert.ok(assigned.ok);
+  
+  const updatedCandidates = await store.candidatesFor(project.id);
   assert.deepEqual(
-    store.candidatesFor(project.id).map((c) => c.name),
+    updatedCandidates.map((c) => c.name),
     ["jf1"],
   );
 });
 
-test("seat limits are enforced", () => {
+test("seat limits are enforced", async () => {
   const store = new Store();
-  const project = makeProject(store);
-  const j1 = user(store, "j1", "frontend", "junior");
-  const j2 = user(store, "j2", "frontend", "junior");
-  const j3 = user(store, "j3", "frontend", "junior");
-  assert.ok(store.assignTeamMember(project.id, j1.id).ok);
-  assert.ok(store.assignTeamMember(project.id, j2.id).ok);
-  const third = store.assignTeamMember(project.id, j3.id);
+  const project = await makeProject(store);
+  const j1 = await user(store, "j1", "frontend", "junior");
+  const j2 = await user(store, "j2", "frontend", "junior");
+  const j3 = await user(store, "j3", "frontend", "junior");
+  
+  const assign1 = await store.assignTeamMember(project.id, j1.id);
+  assert.ok(assign1.ok);
+  const assign2 = await store.assignTeamMember(project.id, j2.id);
+  assert.ok(assign2.ok);
+  
+  const third = await store.assignTeamMember(project.id, j3.id);
   assert.equal(third.ok, false); // only 2 junior frontend seats
 
-  const mid = user(store, "m1", "frontend", "mid");
-  const wrongLevel = store.assignTeamMember(project.id, mid.id);
+  const mid = await user(store, "m1", "frontend", "mid");
+  const wrongLevel = await store.assignTeamMember(project.id, mid.id);
   assert.equal(wrongLevel.ok, false); // matrix asks for juniors, not mids
 });
 
-test("duplicate assignment is refused and showcase hides private projects", () => {
+test("duplicate assignment is refused and showcase hides private projects", async () => {
   const store = new Store();
-  const project = makeProject(store);
-  const dev = user(store, "d1", "backend", "senior");
-  assert.ok(store.assignTeamMember(project.id, dev.id).ok);
-  assert.equal(store.assignTeamMember(project.id, dev.id).ok, false);
+  const project = await makeProject(store);
+  const dev = await user(store, "d1", "backend", "senior");
+  
+  const assign1 = await store.assignTeamMember(project.id, dev.id);
+  assert.ok(assign1.ok);
+  const assign2 = await store.assignTeamMember(project.id, dev.id);
+  assert.equal(assign2.ok, false);
 
-  assert.equal(store.listShowcase().length, 0); // isPublic=false
-  store.createProject({
+  const showcase1 = await store.listShowcase();
+  assert.equal(showcase1.length, 0); // isPublic=false
+  await store.createProject({
     name: "public-one",
     type: "ecommerce",
     description: "d",
@@ -82,7 +93,7 @@ test("duplicate assignment is refused and showcase hides private projects", () =
     techStack: [],
     resourceMatrix: [],
   });
-  const showcase = store.listShowcase();
-  assert.equal(showcase.length, 1);
-  assert.equal(showcase[0]?.name, "public-one");
+  const showcase2 = await store.listShowcase();
+  assert.equal(showcase2.length, 1);
+  assert.equal(showcase2[0]?.name, "public-one");
 });

@@ -3,6 +3,7 @@ import { Router, type Request, type Response } from "express";
 import { TICKET_NEXT_STATUS } from "@rcs/shared";
 import type { Store } from "../store.js";
 import type { ApiConfig } from "../config.js";
+import { Redis } from "ioredis";
 
 const TICKET_REF_PATTERN = /RCS-\d+/;
 
@@ -25,10 +26,10 @@ function validSignature(secret: string, body: Buffer | undefined, signature: str
   return actual.length === wanted.length && timingSafeEqual(actual, wanted);
 }
 
-export function webhookRoutes(config: ApiConfig, store: Store): Router {
+export function webhookRoutes(config: ApiConfig, store: Store, redisClient?: Redis | null): Router {
   const router = Router();
 
-  router.post("/github", (req: RawBodyRequest, res: Response) => {
+  router.post("/github", async (req: RawBodyRequest, res: Response) => {
     if (config.githubWebhookSecret === null) {
       res.status(503).json({ error: "GitHub webhook integration is not configured" });
       return;
@@ -42,11 +43,21 @@ export function webhookRoutes(config: ApiConfig, store: Store): Router {
       res.status(400).json({ error: "missing GitHub delivery id" });
       return;
     }
-    if (deliveries.has(deliveryId)) {
-      res.status(409).json({ error: "webhook delivery already processed" });
-      return;
+    if (redisClient) {
+      const redisKey = `rcs:webhook:${deliveryId}`;
+      const isDuplicate = await redisClient.get(redisKey);
+      if (isDuplicate !== null) {
+        res.status(409).json({ error: "webhook delivery already processed" });
+        return;
+      }
+      await redisClient.set(redisKey, "1", "EX", 24 * 60 * 60);
+    } else {
+      if (deliveries.has(deliveryId)) {
+        res.status(409).json({ error: "webhook delivery already processed" });
+        return;
+      }
+      deliveries.add(deliveryId);
     }
-    deliveries.add(deliveryId);
     const body = req.body as Record<string, unknown>;
     const action = body["action"];
     const pr = body["pull_request"] as Record<string, unknown> | undefined;
@@ -57,7 +68,7 @@ export function webhookRoutes(config: ApiConfig, store: Store): Router {
     const title = typeof pr["title"] === "string" ? pr["title"] : "";
     const match = TICKET_REF_PATTERN.exec(title);
     if (match === null) {
-      store.log(
+      await store.log(
         "git-sync-agent",
         "webhook_ignored",
         `Merged PR "${title}" has no RCS ticket ref`,
@@ -66,9 +77,9 @@ export function webhookRoutes(config: ApiConfig, store: Store): Router {
       return;
     }
     const ref = match[0];
-    const ticket = store.findTicketByRef(ref);
+    const ticket = await store.findTicketByRef(ref);
     if (ticket === undefined) {
-      store.log(
+      await store.log(
         "git-sync-agent",
         "webhook_unmatched",
         `Merged PR references ${ref} but no such ticket exists`,
@@ -81,13 +92,13 @@ export function webhookRoutes(config: ApiConfig, store: Store): Router {
       res.json({ handled: false, reason: `${ref} already complete` });
       return;
     }
-    const result = store.transitionTicket(ticket.id, next);
+    const result = await store.transitionTicket(ticket.id, next);
     if (!result.ok) {
-      store.log("git-sync-agent", "transition_refused", result.error);
+      await store.log("git-sync-agent", "transition_refused", result.error);
       res.status(409).json({ handled: false, reason: result.error });
       return;
     }
-    store.log(
+    await store.log(
       "git-sync-agent",
       "ticket_transitioned",
       `Merged PR "${title}" moved ${ref} from ${ticket.status} to ${next}; PM notified`,

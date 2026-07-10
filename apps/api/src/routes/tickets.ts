@@ -8,23 +8,27 @@ export function ticketRoutes(config: ApiConfig, store: Store): Router {
   const router = Router();
   router.use(requireAuth(config.jwtSecret));
 
-  router.get("/", (req: AuthedRequest, res: Response) => {
+  router.get("/", async (req: AuthedRequest, res: Response) => {
     const session = req.session;
     if (session === undefined) {
       res.status(401).json({ error: "unauthenticated" });
       return;
     }
     const isLead = session.role === "admin" || session.role === "pm";
-    const tickets = store
-      .listTickets()
-      .filter((ticket) => isLead || store.isOnTeam(ticket.projectId, session.sub));
+    const allTickets = await store.listTickets();
+    const tickets = [];
+    for (const ticket of allTickets) {
+      if (isLead || (await store.isOnTeam(ticket.projectId, session.sub))) {
+        tickets.push(ticket);
+      }
+    }
     res.json({ tickets });
   });
 
   router.post(
     "/",
     requireRole("admin", "pm"),
-    (req: AuthedRequest, res: Response) => {
+    async (req: AuthedRequest, res: Response) => {
       const body = req.body as Record<string, unknown>;
       const title = body["title"];
       const description = body["description"];
@@ -44,17 +48,18 @@ export function ticketRoutes(config: ApiConfig, store: Store): Router {
         });
         return;
       }
-      if (store.getProject(projectId) === undefined) {
+      const project = await store.getProject(projectId);
+      if (project === undefined) {
         res.status(404).json({ error: "project not found" });
         return;
       }
-      const ticket = store.createTicket({
+      const ticket = await store.createTicket({
         title,
         description,
         assigneeRole,
         projectId,
       });
-      store.log(
+      await store.log(
         "user",
         "ticket_created",
         `${req.session?.email ?? "unknown"} created ${ticket.ref}: ${ticket.title}`,
@@ -64,7 +69,7 @@ export function ticketRoutes(config: ApiConfig, store: Store): Router {
   );
 
   /** Single-step, deterministic transition; illegal moves are refused. */
-  router.post("/:id/transition", (req: AuthedRequest, res: Response) => {
+  router.post("/:id/transition", async (req: AuthedRequest, res: Response) => {
     const id = req.params.id;
     const body = req.body as Record<string, unknown>;
     const to = body["to"];
@@ -72,7 +77,8 @@ export function ticketRoutes(config: ApiConfig, store: Store): Router {
       res.status(400).json({ error: "ticket id and target status are required" });
       return;
     }
-    const ticket = store.listTickets().find((candidate) => candidate.id === id);
+    const allTickets = await store.listTickets();
+    const ticket = allTickets.find((candidate) => candidate.id === id);
     const session = req.session;
     if (ticket === undefined) {
       res.status(404).json({ error: "ticket not found" });
@@ -82,17 +88,17 @@ export function ticketRoutes(config: ApiConfig, store: Store): Router {
       session === undefined ||
       (session.role !== "admin" &&
         session.role !== "pm" &&
-        !store.isOnTeam(ticket.projectId, session.sub))
+        !(await store.isOnTeam(ticket.projectId, session.sub)))
     ) {
       res.status(403).json({ error: "project membership required" });
       return;
     }
-    const result = store.transitionTicket(id, to);
+    const result = await store.transitionTicket(id, to);
     if (!result.ok) {
       res.status(409).json({ error: result.error });
       return;
     }
-    store.log(
+    await store.log(
       "user",
       "ticket_transitioned",
       `${req.session?.email ?? "unknown"} moved ${result.ticket.ref} to ${to}`,

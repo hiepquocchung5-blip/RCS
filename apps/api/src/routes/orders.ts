@@ -11,21 +11,21 @@ import { orderSchema, validationError } from "../schemas.js";
 export function orderRoutes(config: ApiConfig, store: Store): Router {
   const router = Router();
 
-  router.post("/", (req: Request, res: Response) => {
+  router.post("/", async (req: Request, res: Response) => {
     const parsed = orderSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json(validationError(parsed.error));
       return;
     }
     const { name, email, company, projectType, brief } = parsed.data;
-    const order = store.createOrder({
+    const order = await store.createOrder({
       name,
       email,
       company,
       projectType,
       brief,
     });
-    store.log(
+    await store.log(
       "api",
       "order_received",
       `Client order from ${order.email} (${order.projectType}) awaiting admin review`,
@@ -37,8 +37,8 @@ export function orderRoutes(config: ApiConfig, store: Store): Router {
     "/",
     requireAuth(config.jwtSecret),
     requireRole("admin", "pm"),
-    (_req: AuthedRequest, res: Response) => {
-      res.json({ orders: store.listOrders() });
+    async (_req: AuthedRequest, res: Response) => {
+      res.json({ orders: await store.listOrders() });
     },
   );
 
@@ -46,14 +46,14 @@ export function orderRoutes(config: ApiConfig, store: Store): Router {
     "/:id/review",
     requireAuth(config.jwtSecret),
     requireRole("admin", "pm"),
-    (req: AuthedRequest, res: Response) => {
+    async (req: AuthedRequest, res: Response) => {
       const id = req.params.id;
-      const order = id !== undefined ? store.markOrderReviewed(id) : undefined;
+      const order = id !== undefined ? await store.markOrderReviewed(id) : undefined;
       if (order === undefined) {
         res.status(404).json({ error: "order not found" });
         return;
       }
-      store.log(
+      await store.log(
         "user",
         "order_reviewed",
         `${req.session?.email ?? "unknown"} reviewed order from ${order.email}`,
@@ -66,9 +66,10 @@ export function orderRoutes(config: ApiConfig, store: Store): Router {
     "/:id/convert",
     requireAuth(config.jwtSecret),
     requireRole("admin", "pm"),
-    (req: AuthedRequest, res: Response) => {
+    async (req: AuthedRequest, res: Response) => {
       const id = req.params.id;
-      const order = id === undefined ? undefined : store.listOrders().find((item) => item.id === id);
+      const allOrders = await store.listOrders();
+      const order = id === undefined ? undefined : allOrders.find((item) => item.id === id);
       if (order === undefined) {
         res.status(404).json({ error: "order not found" });
         return;
@@ -77,7 +78,7 @@ export function orderRoutes(config: ApiConfig, store: Store): Router {
         res.status(409).json({ error: "only reviewed requests can be converted" });
         return;
       }
-      const project = store.createProject({
+      const project = await store.createProject({
         name: order.company.length > 0 ? `${order.company} project` : `${order.name} project`,
         type: order.projectType,
         description: order.brief,
@@ -86,8 +87,8 @@ export function orderRoutes(config: ApiConfig, store: Store): Router {
         techStack: [],
         resourceMatrix: [],
       });
-      store.markOrderConverted(order.id);
-      store.log("user", "order_converted", `${req.session?.email ?? "unknown"} converted request ${order.id} into "${project.name}"`);
+      await store.markOrderConverted(order.id);
+      await store.log("user", "order_converted", `${req.session?.email ?? "unknown"} converted request ${order.id} into "${project.name}"`);
       res.status(201).json({ project });
     },
   );

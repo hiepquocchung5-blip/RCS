@@ -22,20 +22,20 @@ interface ChatSession {
  * siloed per project; role rooms ("role:<role>") and tech-stack rooms
  * ("tech:<slug>") complement them.
  */
-function authorizeChannel(
+async function authorizeChannel(
   store: Store,
   user: SessionClaims,
   channel: string,
-): boolean {
+): Promise<boolean> {
   const [kind, key] = [channel.slice(0, channel.indexOf(":")), channel.slice(channel.indexOf(":") + 1)];
   if (channel.indexOf(":") === -1 || key.length === 0) return false;
   switch (kind) {
     case "project":
-      if (store.getProject(key) === undefined) return false;
+      if ((await store.getProject(key)) === undefined) return false;
       return (
         user.role === "admin" ||
         user.role === "pm" ||
-        store.isOnTeam(key, user.sub)
+        (await store.isOnTeam(key, user.sub))
       );
     case "role":
       return user.role === "admin" || user.role === key;
@@ -55,7 +55,7 @@ export function attachChat(server: Server, store: Store, jwtSecret: string): voi
   };
 
   wss.on("connection", (socket: WebSocket) => {
-    socket.on("message", (raw: Buffer | ArrayBuffer | Buffer[]) => {
+    socket.on("message", async (raw: Buffer | ArrayBuffer | Buffer[]) => {
       let msg;
       try {
         msg = parseChatClientMessage(String(raw));
@@ -67,26 +67,29 @@ export function attachChat(server: Server, store: Store, jwtSecret: string): voi
       if (msg.type === "chat:join") {
         const user = verifyToken(jwtSecret, msg.token, "session");
         if (user === null) {
-          send(socket, { type: "chat:error", message: "chat requires a valid session token" });
-          socket.close();
+          send(socket, { type: "chat:error", message: "chat requires a valid session token", code: 401 });
+          socket.close(4401, "chat requires a valid session token");
           return;
         }
-        if (!authorizeChannel(store, user, msg.channel)) {
+        const isAuthorized = await authorizeChannel(store, user, msg.channel);
+        if (!isAuthorized) {
           send(socket, {
             type: "chat:error",
             message: `you are not a member of ${msg.channel}`,
+            code: 403,
           });
+          socket.close(4403, `you are not a member of ${msg.channel}`);
           return;
         }
         sessions.set(socket, { user, channel: msg.channel });
-        send(socket, { type: "chat:joined", channel: msg.channel });
+        send(socket, { type: "chat:joined", channel: msg.channel, code: 101 });
         return;
       }
 
       // chat:post — author always comes from the verified JWT, never the client.
       const session = sessions.get(socket);
       if (session === undefined) {
-        send(socket, { type: "chat:error", message: "join a channel first" });
+        send(socket, { type: "chat:error", message: "join a channel first", code: 403 });
         return;
       }
       const body = msg.body.trim();
@@ -124,7 +127,7 @@ export function chatRoutes(config: ApiConfig, store: Store): Router {
   router.get(
     "/channels",
     requireAuth(config.jwtSecret),
-    (req: AuthedRequest, res: Response) => {
+    async (req: AuthedRequest, res: Response) => {
       const session = req.session;
       if (session === undefined) {
         res.status(401).json({ error: "unauthenticated" });
@@ -132,9 +135,13 @@ export function chatRoutes(config: ApiConfig, store: Store): Router {
       }
       const channels: ChatChannel[] = [];
       const isLead = session.role === "admin" || session.role === "pm";
-      const projects = store
-        .listProjects()
-        .filter((project) => isLead || store.isOnTeam(project.id, session.sub));
+      const allProjects = await store.listProjects();
+      const projects = [];
+      for (const project of allProjects) {
+        if (isLead || (await store.isOnTeam(project.id, session.sub))) {
+          projects.push(project);
+        }
+      }
       for (const project of projects) {
         channels.push({
           id: `project:${project.id}`,

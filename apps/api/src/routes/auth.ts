@@ -6,6 +6,8 @@ import type { Store } from "../store.js";
 import { rateLimit } from "../middleware/rate-limit.js";
 import { applicationSchema, loginSchema, otpSchema, validationError } from "../schemas.js";
 
+import { Redis } from "ioredis";
+
 function asString(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
 }
@@ -14,14 +16,16 @@ export function authRoutes(
   config: ApiConfig,
   store: Store,
   otpStore: OtpStore,
+  redisClient?: Redis | null,
 ): Router {
   const router = Router();
-  const applicationLimit = rateLimit({ windowMs: 60 * 60 * 1000, limit: 10 });
-  const loginLimit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10 });
+  const applicationLimit = rateLimit({ windowMs: 60 * 60 * 1000, limit: 10, redisClient });
+  const loginLimit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, redisClient });
   const otpLimit = rateLimit({
     windowMs: 5 * 60 * 1000,
     limit: 5,
     key: (req) => `${req.ip ?? "unknown"}:${String((req.body as Record<string, unknown>)["applicationId"] ?? "missing")}`,
+    redisClient,
   });
 
   /**
@@ -36,7 +40,7 @@ export function authRoutes(
       return;
     }
     const { email, name, githubUrl, requestedRole, skillLevel } = parsed.data;
-    const application = store.createApplication({
+    const application = await store.createApplication({
       email,
       name,
       githubUrl,
@@ -45,7 +49,7 @@ export function authRoutes(
     });
     const otp = generateOtp();
     await otpStore.issue(application.id, otp);
-    store.log(
+    await store.log(
       "onboarding-agent",
       "otp_issued",
       `OTP issued for application ${application.id} (${email}), expires in 5 minutes`,
@@ -64,14 +68,14 @@ export function authRoutes(
       return;
     }
     const { applicationId, otp } = parsed.data;
-    const application = store.getApplication(applicationId);
+    const application = await store.getApplication(applicationId);
     if (application === undefined || application.status !== "pending_otp") {
       res.status(404).json({ error: "no application awaiting OTP" });
       return;
     }
     const valid = await otpStore.verify(applicationId, otp);
     if (!valid) {
-      store.log(
+      await store.log(
         "onboarding-agent",
         "otp_rejected",
         `OTP rejected for application ${applicationId} (wrong or expired)`,
@@ -79,8 +83,8 @@ export function authRoutes(
       res.status(401).json({ error: "invalid or expired OTP" });
       return;
     }
-    store.setApplicationStatus(applicationId, "otp_verified");
-    store.log(
+    await store.setApplicationStatus(applicationId, "otp_verified");
+    await store.log(
       "onboarding-agent",
       "otp_verified",
       `OTP verified for application ${applicationId}; awaiting admin approval`,
@@ -89,18 +93,18 @@ export function authRoutes(
   });
 
   /** Step 5 — one-time magic link reveals the generated credential. */
-  router.get("/magic/:token", (req: Request, res: Response) => {
+  router.get("/magic/:token", async (req: Request, res: Response) => {
     const token = req.params.token;
     if (token === undefined) {
       res.status(400).json({ error: "token required" });
       return;
     }
-    const result = store.consumeMagicLink(token);
+    const result = await store.consumeMagicLink(token);
     if (result === undefined) {
       res.status(410).json({ error: "magic link invalid or already used" });
       return;
     }
-    store.log(
+    await store.log(
       "onboarding-agent",
       "magic_link_consumed",
       `Credentials delivered to ${result.user.email}; link burned`,
@@ -109,14 +113,14 @@ export function authRoutes(
   });
 
   /** Standard login for provisioned users. */
-  router.post("/login", loginLimit, (req: Request, res: Response) => {
+  router.post("/login", loginLimit, async (req: Request, res: Response) => {
     const parsed = loginSchema.safeParse(req.body);
     if (!parsed.success) {
       res.status(400).json(validationError(parsed.error));
       return;
     }
     const { email, password } = parsed.data;
-    const user = store.authenticateUser(email, password);
+    const user = await store.authenticateUser(email, password);
     if (user === undefined) {
       res.status(401).json({ error: "invalid credentials" });
       return;
@@ -126,7 +130,7 @@ export function authRoutes(
       email: user.email,
       role: user.role,
     });
-    store.log("api", "login", `${user.email} logged in (${user.role})`);
+    await store.log("api", "login", `${user.email} logged in (${user.role})`);
     const { passwordHash: _passwordHash, ...profile } = user;
     res.json({ token, user: profile });
   });
