@@ -21,7 +21,7 @@ export default function LoginPage() {
       saveSession(result);
       window.dispatchEvent(new Event("rcs:session"));
       toast("success", `Welcome back, ${result.user.name}.`);
-      router.push("/workspace");
+      router.push("/projects");
     } catch (error) {
       toast("error", error instanceof Error ? error.message : "login failed");
     } finally {
@@ -36,10 +36,18 @@ export default function LoginPage() {
         className="flex w-full max-w-sm flex-col gap-4 rounded-lg border border-rise-border bg-rise-surface p-6"
       >
         <div>
-          <h1 className="text-lg font-bold">Log in to RCS</h1>
+          <p className="font-mono text-[10px] uppercase tracking-[0.35em] text-rise-accent">
+            Delivery Portal
+          </p>
+          <h1 className="mt-1 text-lg font-bold">Welcome back</h1>
           <p className="text-xs text-rise-muted">
-            Profiles are created by the Admin. Your 16-character credential was
-            delivered via a one-time magic link.
+            Sign in to manage projects, delivery and team activity. New team
+            members receive credentials after their application is approved.
+            Clients don&apos;t need an account — use the{" "}
+            <a href="/portal" className="text-rise-gold hover:underline">
+              Client Portal
+            </a>
+            .
           </p>
         </div>
         <label className="flex flex-col gap-1 text-sm">
@@ -71,6 +79,10 @@ export default function LoginPage() {
         >
           {busy ? "Signing in…" : "Sign in"}
         </button>
+        <p className="text-center text-xs text-rise-muted">
+          Interested in joining the team?{" "}
+          <a href="/apply" className="text-rise-accent hover:underline">Apply to RCS</a>
+        </p>
       </form>
     </div>
   );

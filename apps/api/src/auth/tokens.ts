@@ -5,8 +5,7 @@ export interface SessionClaims {
   sub: string;
   email: string;
   role: Role;
-  /** "session" for web sessions, "bridge" for RCS-CLI terminal sessions. */
-  aud: "session" | "bridge";
+  aud: "session";
 }
 
 export function signSessionToken(
@@ -14,13 +13,6 @@ export function signSessionToken(
   claims: Omit<SessionClaims, "aud">,
 ): string {
   return jwt.sign({ ...claims, aud: "session" }, secret, { expiresIn: "12h" });
-}
-
-export function signBridgeToken(
-  secret: string,
-  claims: Omit<SessionClaims, "aud">,
-): string {
-  return jwt.sign({ ...claims, aud: "bridge" }, secret, { expiresIn: "1h" });
 }
 
 export function verifyToken(

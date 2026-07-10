@@ -4,26 +4,27 @@ import Link from "next/link";
 import "./globals.css";
 import { ToastProvider } from "@/components/ToastProvider";
 import { SessionBadge } from "@/components/SessionBadge";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { PortalNavigation } from "@/components/PortalNavigation";
 
 export const metadata: Metadata = {
   title: "RCS — RiseCoreStudio",
-  description: "The Ultimate Developer Hub & Agency CMS",
+  description: "Agency delivery, project planning and team operations.",
 };
 
-const NAV_LINKS = [
-  { href: "/workspace", label: "Workspace" },
-  { href: "/board", label: "Board" },
-  { href: "/admin", label: "Admin" },
-  { href: "/logs", label: "SystemLogs" },
-] as const;
+const THEME_BOOT = `try{if(localStorage.getItem("rcs.theme")==="light")document.documentElement.classList.add("light")}catch(e){}`;
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className="dark">
-      <body className="flex h-screen flex-col overflow-hidden font-sans antialiased">
+    <html lang="en" className="dark" suppressHydrationWarning>
+      <body
+        className="flex h-screen flex-col overflow-hidden font-sans antialiased"
+        suppressHydrationWarning
+      >
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
         <ToastProvider>
-          <header className="flex h-12 shrink-0 items-center gap-6 border-b border-rise-border bg-rise-surface px-4">
-            <Link href="/" className="flex items-center gap-2">
+          <header className="flex min-h-14 shrink-0 items-center gap-2 border-b border-rise-border bg-rise-surface px-3 sm:gap-5 sm:px-5">
+            <Link href="/" aria-label="RiseCoreStudio home" className="flex shrink-0 items-center gap-2">
               <span className="text-lg font-bold tracking-tight text-rise-accent">
                 ▲ RCS
               </span>
@@ -31,18 +32,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                 RiseCoreStudio
               </span>
             </Link>
-            <nav className="flex items-center gap-4 text-sm">
-              {NAV_LINKS.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className="text-rise-muted transition-colors hover:text-rise-accent"
-                >
-                  {link.label}
-                </Link>
-              ))}
-            </nav>
-            <div className="ml-auto">
+            <div className="min-w-0 flex-1"><PortalNavigation /></div>
+            <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
+              <ThemeToggle />
               <SessionBadge />
             </div>
           </header>

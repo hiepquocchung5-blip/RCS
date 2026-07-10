@@ -5,24 +5,32 @@
 #     ssh root@<vps-ip> 'bash -s' < scripts/provision-vps.sh
 #   (connection details: confidentials/vpsinfoUSER.md — never commit that file)
 #
-# Creates the dedicated deploy user "rcs", installs the runtime stack
+# Creates the dedicated deploy user "RCS_user", installs the runtime stack
 # (Node 22, pm2, nginx, redis, postgres, certbot) and prepares /opt/rcs.
 # Deterministic and idempotent — safe to re-run.
 set -euo pipefail
 
-DEPLOY_USER="rcs"
+DEPLOY_USER="${RCS_DEPLOY_USER:-RCS_user}"
 APP_DIR="/opt/rcs"
+PASSWORD_FILE="/root/${DEPLOY_USER}-initial-password"
 
 echo "==> [1/6] deploy user '${DEPLOY_USER}'"
 if ! id "${DEPLOY_USER}" >/dev/null 2>&1; then
-  adduser --disabled-password --gecos "RCS deploy" "${DEPLOY_USER}"
+  useradd --create-home --shell /bin/bash "${DEPLOY_USER}"
+  DEPLOY_PASSWORD="$(openssl rand -base64 24 | tr -d '/+=' | cut -c1-20)"
+  echo "${DEPLOY_USER}:${DEPLOY_PASSWORD}" | chpasswd
+  umask 077
+  printf '%s\n' "${DEPLOY_PASSWORD}" > "${PASSWORD_FILE}"
   usermod -aG sudo "${DEPLOY_USER}"
-  echo "    created user '${DEPLOY_USER}' (sudo). Set a password or add SSH keys next."
+  echo "    created user '${DEPLOY_USER}' (sudo); initial password stored at ${PASSWORD_FILE}"
 else
   echo "    user '${DEPLOY_USER}' already exists — skipping"
 fi
 mkdir -p "/home/${DEPLOY_USER}/.ssh"
 touch "/home/${DEPLOY_USER}/.ssh/authorized_keys"
+if [[ -s /root/.ssh/authorized_keys && ! -s "/home/${DEPLOY_USER}/.ssh/authorized_keys" ]]; then
+  cp /root/.ssh/authorized_keys "/home/${DEPLOY_USER}/.ssh/authorized_keys"
+fi
 chmod 700 "/home/${DEPLOY_USER}/.ssh"
 chmod 600 "/home/${DEPLOY_USER}/.ssh/authorized_keys"
 chown -R "${DEPLOY_USER}:${DEPLOY_USER}" "/home/${DEPLOY_USER}/.ssh"

@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { apply, verifyOtp } from "@/lib/api";
 import { useToast } from "@/components/ToastProvider";
+import { SKILL_LEVELS, type SkillLevel } from "@rcs/shared";
 
 type Step = "form" | "otp" | "done";
 
@@ -15,6 +16,7 @@ export default function ApplyPage() {
   const [name, setName] = useState("");
   const [githubUrl, setGithubUrl] = useState("");
   const [role, setRole] = useState<(typeof ROLE_OPTIONS)[number]>("frontend");
+  const [skillLevel, setSkillLevel] = useState<SkillLevel>("mid");
   const [otp, setOtp] = useState("");
   const [busy, setBusy] = useState(false);
   const { toast } = useToast();
@@ -23,7 +25,13 @@ export default function ApplyPage() {
     event.preventDefault();
     setBusy(true);
     try {
-      const result = await apply({ email, name, githubUrl, requestedRole: role });
+      const result = await apply({
+        email,
+        name,
+        githubUrl,
+        requestedRole: role,
+        skillLevel,
+      });
       setApplicationId(result.applicationId);
       setStep("otp");
       toast(
@@ -105,6 +113,20 @@ export default function ApplyPage() {
                 {ROLE_OPTIONS.map((option) => (
                   <option key={option} value={option}>
                     {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-sm">
+              Experience level
+              <select
+                value={skillLevel}
+                onChange={(event) => setSkillLevel(event.target.value as SkillLevel)}
+                className="rounded border border-rise-border bg-rise-bg px-3 py-2 capitalize outline-none focus:border-rise-accent"
+              >
+                {SKILL_LEVELS.map((level) => (
+                  <option key={level} value={level} className="capitalize">
+                    {level}
                   </option>
                 ))}
               </select>

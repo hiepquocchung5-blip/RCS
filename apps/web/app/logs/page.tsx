@@ -9,7 +9,6 @@ import { loadSession } from "@/lib/session";
 const ACTOR_COLORS: Record<string, string> = {
   "onboarding-agent": "text-rise-accent",
   "git-sync-agent": "text-rise-success",
-  "local-bridge-agent": "text-rise-warning",
   api: "text-rise-muted",
   user: "text-rise-text",
 };
@@ -33,7 +32,7 @@ export default function LogsPage() {
   if (denied) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3">
-        <p className="text-rise-muted">SystemLogs require a session.</p>
+        <p className="text-rise-muted">Activity history requires a session.</p>
         <Link href="/login" className="text-rise-accent hover:underline">
           Log in →
         </Link>
@@ -43,9 +42,9 @@ export default function LogsPage() {
 
   return (
     <div className="mx-auto max-w-4xl p-6">
-      <h1 className="text-xl font-bold">SystemLogs</h1>
+      <h1 className="text-xl font-bold">Activity history</h1>
       <p className="mb-4 text-sm text-rise-muted">
-        Zero magic: every agent action is recorded here.
+        A transparent record of automated and team-driven delivery events.
       </p>
       <div className="space-y-1 rounded-lg border border-rise-border bg-rise-surface p-4 font-mono text-xs">
         {logs.length === 0 ? (

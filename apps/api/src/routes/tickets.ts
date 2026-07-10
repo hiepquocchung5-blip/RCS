@@ -8,8 +8,17 @@ export function ticketRoutes(config: ApiConfig, store: Store): Router {
   const router = Router();
   router.use(requireAuth(config.jwtSecret));
 
-  router.get("/", (_req: AuthedRequest, res: Response) => {
-    res.json({ tickets: store.listTickets() });
+  router.get("/", (req: AuthedRequest, res: Response) => {
+    const session = req.session;
+    if (session === undefined) {
+      res.status(401).json({ error: "unauthenticated" });
+      return;
+    }
+    const isLead = session.role === "admin" || session.role === "pm";
+    const tickets = store
+      .listTickets()
+      .filter((ticket) => isLead || store.isOnTeam(ticket.projectId, session.sub));
+    res.json({ tickets });
   });
 
   router.post(
@@ -35,6 +44,10 @@ export function ticketRoutes(config: ApiConfig, store: Store): Router {
         });
         return;
       }
+      if (store.getProject(projectId) === undefined) {
+        res.status(404).json({ error: "project not found" });
+        return;
+      }
       const ticket = store.createTicket({
         title,
         description,
@@ -57,6 +70,21 @@ export function ticketRoutes(config: ApiConfig, store: Store): Router {
     const to = body["to"];
     if (id === undefined || typeof to !== "string" || !isTicketStatus(to)) {
       res.status(400).json({ error: "ticket id and target status are required" });
+      return;
+    }
+    const ticket = store.listTickets().find((candidate) => candidate.id === id);
+    const session = req.session;
+    if (ticket === undefined) {
+      res.status(404).json({ error: "ticket not found" });
+      return;
+    }
+    if (
+      session === undefined ||
+      (session.role !== "admin" &&
+        session.role !== "pm" &&
+        !store.isOnTeam(ticket.projectId, session.sub))
+    ) {
+      res.status(403).json({ error: "project membership required" });
       return;
     }
     const result = store.transitionTicket(id, to);

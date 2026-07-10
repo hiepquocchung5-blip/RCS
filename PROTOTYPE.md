@@ -1,39 +1,24 @@
-# RCS Prototyping & UX/UI Standards
+# RCS Product and Interface Standards
 
-As a comprehensive Dev Hub, RiseCoreStudio must balance extreme data density with usability.
+## Product voice
 
-## 🎨 Design System: "Rise Dark"
+RCS should feel like a trusted delivery partner: calm, precise and direct. Prefer familiar language such as “project,” “staffing plan,” “team member,” “client request” and “activity history.” Avoid theatrical or highly technical language when a business-facing term is clearer.
 
-**Primary theme:** deep dark mode by default. Developers stare at screens all day; the UI must be low-contrast and easy on the eyes.
+## Visual system
 
-| Token | Value | Usage |
-| --- | --- | --- |
-| Background | `#0f111a` | App background |
-| Surfaces | `#1a1d27` | Panels, cards, headers |
-| Cyber Blue | `#00f0ff` | Primary accent — active states |
-| Neon Green | `#39ff14` | Success — passed pipelines, completed tickets |
-| Crimson | `#ff3333` | Warning/Error — failed builds, approaching deadlines |
+The default Rise Dark theme uses a deep background, restrained surfaces and focused cyan accents. The light theme uses ink blue and emerald. Gold is reserved for editorial and client-facing emphasis. Tokens live in `apps/web/app/globals.css`.
 
-The Tailwind theme tokens live in `apps/web/app/globals.css` (`--color-rise-*`).
+## Layout principles
 
-## 📐 Layout Principles
+- Public pages should be spacious, editorial and outcome-focused.
+- Internal pages should use clear page titles, concise supporting text and visible summary metrics.
+- Projects should foreground client context, team readiness and delivery ownership.
+- Forms should group business context, technology and staffing decisions logically.
+- Empty states must explain the next useful action.
 
-### The Workspace View (High Density)
+## Interaction standards
 
-| Region | Contents |
-| --- | --- |
-| Left sidebar | File tree / ticket context |
-| Center top | Monaco code editor |
-| Center bottom | Integrated xterm.js local terminal |
-| Right sidebar | Real-time project chat and Git status |
-
-### The PM Dashboard (Strategic View)
-
-- Macro-level Gantt charts for Milestones.
-- Kanban boards for ticket status.
-- Quick-action modals for Git-link binding.
-
-## 🔄 Interaction Guidelines
-
-- **No "black box" automations** — since RCS avoids "AI automotive" behaviors, all automated state changes (e.g. a ticket moving to *Review* upon a merged PR) must display a clear toast notification explaining **why** the state changed.
-- **Terminal safety** — the web-to-local terminal bridge must have a visible connection status indicator (**Red / Yellow / Green**) and a hard **"Disconnect"** kill switch that terminates the local shell.
+- Explain automated state changes through a toast and activity entry.
+- Preserve one-way ticket transitions and make the next legal action obvious.
+- Confirm high-impact changes and display permission failures clearly.
+- Respect reduced-motion preferences.

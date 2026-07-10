@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
-/* Rise Dark design system (see PROTOTYPE.md) */
+/* Rise design system (see PROTOTYPE.md) — tokens flip between the default
+   "Rise Dark" theme and the light "Ink & Emerald" theme via html.light. */
 @theme {
   --color-rise-bg: #0f111a;
   --color-rise-surface: #1a1d27;
@@ -12,7 +13,24 @@
   --color-rise-success: #39ff14;
   --color-rise-error: #ff3333;
   --color-rise-warning: #ffc400;
+  --color-rise-gold: #d4b06a;
   --font-mono: "SF Mono", ui-monospace, "JetBrains Mono", Menlo, monospace;
+  --font-display: "Didot", "Playfair Display", "Georgia", "Times New Roman", serif;
+}
+
+/* Light theme: white surfaces, ink blue accents, emerald success. */
+html.light {
+  --color-rise-bg: #f6f7fb;
+  --color-rise-surface: #ffffff;
+  --color-rise-surface-2: #eceff6;
+  --color-rise-border: #d8deea;
+  --color-rise-text: #16203a;
+  --color-rise-muted: #5b6478;
+  --color-rise-accent: #1e40af; /* ink blue */
+  --color-rise-success: #059669; /* emerald */
+  --color-rise-error: #d92626;
+  --color-rise-warning: #b45309;
+  --color-rise-gold: #a5803a;
 }
 
 html,
@@ -23,14 +41,106 @@ body {
 body {
   background-color: var(--color-rise-bg);
   color: var(--color-rise-text);
+  transition: background-color 200ms ease, color 200ms ease;
 }
 
 ::selection {
   background: color-mix(in srgb, var(--color-rise-accent) 30%, transparent);
 }
 
-/* thin scrollbars that fit the dense workspace */
+/* restrained scrollbars for dense delivery views */
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--color-rise-border) transparent;
+}
+
+/* ── Premium landing / showcase (retro-luxury) ───────────────────────────── */
+
+@keyframes rise-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes rise-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-14px);
+  }
+}
+
+@keyframes rise-glow {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+.fade-up {
+  opacity: 0;
+  animation: rise-fade-up 700ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+.fade-up-1 {
+  animation-delay: 80ms;
+}
+.fade-up-2 {
+  animation-delay: 200ms;
+}
+.fade-up-3 {
+  animation-delay: 340ms;
+}
+.fade-up-4 {
+  animation-delay: 500ms;
+}
+
+.float-slow {
+  animation: rise-float 7s ease-in-out infinite;
+}
+
+.glow-pulse {
+  animation: rise-glow 5s ease-in-out infinite;
+}
+
+.font-display {
+  font-family: var(--font-display);
+}
+
+/* Ornamental hairline used by the luxury sections. */
+.hairline {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--color-rise-gold) 70%, transparent),
+    transparent
+  );
+  height: 1px;
+}
+
+/* Soft radial glow orbs behind hero content. */
+.orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(90px);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fade-up,
+  .float-slow,
+  .glow-pulse {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
 }

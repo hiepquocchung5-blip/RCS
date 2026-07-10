@@ -1,117 +1,116 @@
-# RCS Deployment Guide (VPS)
+# RCS Production Deployment
 
-Deploys the **API** and **web** apps from **GitHub** to the agency VPS. The **RCS-CLI daemon is never deployed** — it always runs on each developer's local machine (Local-Synced Workspace paradigm).
+Target: `https://risecorestudio.com`. Nginx serves the web app and routes `/api/*` to the API.
 
-## 🔐 Credentials
+## DNS prerequisite
 
-SSH user, password, and host IP live in **`confidentials/vpsinfoUSER.md`** (gitignored — it will NOT be on GitHub, keep a local/password-manager copy). Never commit that directory, never paste its contents into code, commits, logs, or chat. Read the values locally when you need them:
-
-```bash
-# look up the connection details (local eyes only)
-cat confidentials/vpsinfoUSER.md
-ssh <user>@<vps-ip>        # values from the file above
+```text
+risecorestudio.com      A      <VPS IPv4>
+www.risecorestudio.com  A      <VPS IPv4>
 ```
 
-Prefer switching the VPS to SSH-key auth and disabling password login once provisioned (checklist inside the file).
+TLS cannot be issued until these records resolve. Credentials remain in `confidentials/`; never commit or print them.
 
-## 📦 Source of truth: GitHub
-
-The whole codebase lives on GitHub; the VPS only ever pulls from it:
+## Provision
 
 ```bash
-# once, from your machine — publish the repo (confidentials/ is gitignored)
-git remote add origin git@github.com:<you>/RCS.git
-git push -u origin main
-
-# safety check BEFORE the first push: confidentials must not be tracked
-git ls-files | grep confidentials && echo "STOP — secrets tracked!" || echo "clean"
+ssh root@<VPS-IP> 'bash -s' < scripts/provision-vps.sh
 ```
 
-For a private repo, give the VPS read-only access with a **deploy key**:
+The script creates `RCS_user`, installs Node.js 22, PM2, Nginx, Redis, PostgreSQL, Certbot and Git, enables the firewall, and prepares `/opt/rcs`. The generated initial password is stored root-only at `/root/RCS_user-initial-password`. Prefer SSH keys for normal access.
+
+## Checkout
 
 ```bash
-# on the VPS
-ssh-keygen -t ed25519 -f ~/.ssh/rcs_deploy -N ""
-cat ~/.ssh/rcs_deploy.pub   # add as a read-only Deploy Key in GitHub → repo Settings
+sudo -u RCS_user git clone https://github.com/hiepquocchung5-blip/RCS.git /opt/rcs
+cd /opt/rcs
+npm ci
 ```
 
-## 🧱 One-time VPS provisioning
+Use a read-only deploy key if the repository is private.
 
-Run the idempotent provisioning script as root — it creates the dedicated
-deploy user **`rcs`** (no day-to-day root), installs Node 22 + pm2 + nginx +
-redis + postgres + certbot, prepares `/opt/rcs`, and enables the firewall:
+## Database
 
 ```bash
-# from your machine (credentials: confidentials/vpsinfoUSER.md)
-ssh root@<vps-ip> 'bash -s' < scripts/provision-vps.sh
+sudo -u postgres psql <<'SQL'
+CREATE USER rcs_app WITH PASSWORD '<strong-random-password>';
+CREATE DATABASE rcs_production OWNER rcs_app;
+SQL
+
+sudo -u RCS_user env DATABASE_URL='postgres://rcs_app:<password>@127.0.0.1:5432/rcs_production' npm run db:migrate -w apps/api
 ```
 
-Then switch to key-based login and lock root out:
+The schema exists, but the API entity repository is still in-memory. Do not consider this durable production until the PostgreSQL repository implementation is activated.
 
-```bash
-ssh-copy-id rcs@<vps-ip>
-# on the VPS: /etc/ssh/sshd_config → PermitRootLogin no, PasswordAuthentication no
-# then: systemctl reload ssh
-```
+## Environment
 
-## 🚀 Deploy (as the `rcs` user)
+Create `/opt/rcs/.env`, mode `600`, owned by `RCS_user:RCS_user`:
 
-```bash
-# on the VPS
-git clone git@github.com:<you>/RCS.git /opt/rcs && cd /opt/rcs
-npm install
-npm run build
-
-# environment — set REAL secrets on the server, never in the repo
-# (full variable reference: .env.example)
-cat > /opt/rcs/.env <<'EOF'
+```dotenv
 NODE_ENV=production
 PORT=4000
-RCS_API_BASE_URL=https://api.<your-domain>
-RCS_JWT_SECRET=<generate: openssl rand -hex 32>
-RCS_ADMIN_EMAIL=<admin email>
-RCS_ADMIN_PASSWORD=<exactly 16 chars, cryptographically generated>
-REDIS_URL=redis://localhost:6379
-DATABASE_URL=postgres://rcs:<db-password>@localhost:5432/rcs
-RCS_WEB_ORIGIN=https://<your-domain>
-EOF
-
-# processes
-pm2 start "node apps/api/dist/index.js" --name rcs-api
-pm2 start "npm run start -w apps/web" --name rcs-web
-pm2 save && pm2 startup
+RCS_API_BASE_URL=https://risecorestudio.com/api
+RCS_WEB_ORIGIN=https://risecorestudio.com,https://www.risecorestudio.com
+RCS_JWT_SECRET=<openssl-rand-hex-32>
+RCS_GITHUB_WEBHOOK_SECRET=<openssl-rand-hex-32>
+RCS_ADMIN_EMAIL=<admin-email>
+RCS_ADMIN_PASSWORD=<exactly-16-characters>
+REDIS_URL=redis://127.0.0.1:6379
+DATABASE_URL=postgres://rcs_app:<password>@127.0.0.1:5432/rcs_production
 ```
 
-Notes:
+```bash
+sudo -u RCS_user env NEXT_PUBLIC_RCS_API=https://risecorestudio.com/api npm run build
+sudo -u RCS_user pm2 start "node apps/api/dist/index.js" --name rcs-api
+sudo -u RCS_user pm2 start "npm run start -w apps/web" --name rcs-web
+sudo -u RCS_user pm2 save
+pm2 startup systemd -u RCS_user --hp /home/RCS_user
+```
 
-- `RCS_JWT_SECRET` **must** be set in production — the API refuses to boot with the dev default.
-- The web app needs `NEXT_PUBLIC_RCS_API=https://<api-domain>` at **build** time when the API isn't on `localhost:4000`.
-- The `/auth/dev-bridge-token` endpoint auto-disables when `NODE_ENV=production`.
-
-## 🌐 Nginx reverse proxy
+## Nginx
 
 ```nginx
 server {
-    server_name rcs.example.com;
-    location / { proxy_pass http://127.0.0.1:3000; }
-}
-server {
-    server_name api.rcs.example.com;
-    location / {
-        proxy_pass http://127.0.0.1:4000;
-        # WebSocket upgrade for /chat
+    listen 80;
+    listen [::]:80;
+    server_name risecorestudio.com www.risecorestudio.com;
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:4000/;
         proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
     }
 }
 ```
 
-Then `certbot --nginx` for TLS.
-
-## 🔄 Updating a deployment
+After DNS resolves:
 
 ```bash
-cd /opt/rcs && git pull && npm install && npm run build
-pm2 restart rcs-api rcs-web
+certbot --nginx -d risecorestudio.com -d www.risecorestudio.com
 ```
+
+## Update and rollback
+
+```bash
+cd /opt/rcs
+sudo -u RCS_user git pull --ff-only origin main
+npm ci
+sudo -u RCS_user env NEXT_PUBLIC_RCS_API=https://risecorestudio.com/api npm run build
+sudo -u RCS_user pm2 restart rcs-api rcs-web --update-env
+```
+
+Record `git rev-parse HEAD` before every update. Roll back by checking out that revision, rebuilding and restarting both services.

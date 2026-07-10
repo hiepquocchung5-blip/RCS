@@ -39,10 +39,11 @@ export function adminRoutes(config: ApiConfig, store: Store): Router {
       return;
     }
     const password = generatePassword();
-    const { password: _password, ...user } = store.createUser({
+    const { passwordHash: _passwordHash, ...user } = store.createUser({
       email: application.email,
       name: application.name,
       role: application.requestedRole,
+      skillLevel: application.skillLevel,
       password,
     });
     store.setApplicationStatus(id, "approved");

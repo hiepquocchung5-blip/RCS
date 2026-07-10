@@ -5,12 +5,13 @@ export interface ApiConfig {
   port: number;
   /** Public base URL of this API (used in emails/magic links). */
   apiBaseUrl: string;
-  /** Secret shared with RCS-CLI for bridge-token verification. */
+  /** Secret used to sign and verify authenticated web sessions. */
   jwtSecret: string;
   /** Redis connection for OTPs (5-min TTL) and future pub/sub; null = in-memory dev fallback. */
   redisUrl: string | null;
   /** PostgreSQL connection for entity storage; null = in-memory dev fallback. */
   databaseUrl: string | null;
+  githubWebhookSecret: string | null;
   /** Browser origins allowed by CORS (comma-separated in RCS_WEB_ORIGIN). */
   webOrigins: string[];
   isProduction: boolean;
@@ -30,6 +31,7 @@ export function loadConfig(): ApiConfig {
     jwtSecret,
     redisUrl: process.env.REDIS_URL ?? null,
     databaseUrl: process.env.DATABASE_URL ?? null,
+    githubWebhookSecret: process.env.RCS_GITHUB_WEBHOOK_SECRET ?? null,
     webOrigins: (process.env.RCS_WEB_ORIGIN ?? "http://localhost:3000")
       .split(",")
       .map((origin) => origin.trim())

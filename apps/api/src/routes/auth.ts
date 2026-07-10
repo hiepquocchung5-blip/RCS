@@ -1,10 +1,10 @@
 import { Router, type Request, type Response } from "express";
-import { isRole } from "@rcs/shared";
 import type { ApiConfig } from "../config.js";
 import { generateOtp, type OtpStore } from "../auth/otp.js";
-import { signBridgeToken, signSessionToken } from "../auth/tokens.js";
+import { signSessionToken } from "../auth/tokens.js";
 import type { Store } from "../store.js";
-import { requireAuth, type AuthedRequest } from "../middleware.js";
+import { rateLimit } from "../middleware/rate-limit.js";
+import { applicationSchema, loginSchema, otpSchema, validationError } from "../schemas.js";
 
 function asString(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
@@ -16,37 +16,32 @@ export function authRoutes(
   otpStore: OtpStore,
 ): Router {
   const router = Router();
+  const applicationLimit = rateLimit({ windowMs: 60 * 60 * 1000, limit: 10 });
+  const loginLimit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10 });
+  const otpLimit = rateLimit({
+    windowMs: 5 * 60 * 1000,
+    limit: 5,
+    key: (req) => `${req.ip ?? "unknown"}:${String((req.body as Record<string, unknown>)["applicationId"] ?? "missing")}`,
+  });
 
   /**
    * Step 1 — developer applies. An OTP is issued with a strict 5-minute TTL.
    * In production the Onboarding Agent emails it; in dev we log it so the
    * flow can be exercised end-to-end.
    */
-  router.post("/apply", async (req: Request, res: Response) => {
-    const body = req.body as Record<string, unknown>;
-    const email = asString(body["email"]);
-    const name = asString(body["name"]);
-    const githubUrl = asString(body["githubUrl"]);
-    const requestedRole = asString(body["requestedRole"]);
-    if (
-      email === null ||
-      name === null ||
-      githubUrl === null ||
-      requestedRole === null ||
-      !isRole(requestedRole) ||
-      requestedRole === "admin"
-    ) {
-      res.status(400).json({
-        error:
-          "email, name, githubUrl and requestedRole (pm|devops|frontend|backend) are required",
-      });
+  router.post("/apply", applicationLimit, async (req: Request, res: Response) => {
+    const parsed = applicationSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json(validationError(parsed.error));
       return;
     }
+    const { email, name, githubUrl, requestedRole, skillLevel } = parsed.data;
     const application = store.createApplication({
       email,
       name,
       githubUrl,
       requestedRole,
+      skillLevel,
     });
     const otp = generateOtp();
     await otpStore.issue(application.id, otp);
@@ -62,14 +57,13 @@ export function authRoutes(
   });
 
   /** Step 2 — applicant proves email ownership with the OTP. */
-  router.post("/verify-otp", async (req: Request, res: Response) => {
-    const body = req.body as Record<string, unknown>;
-    const applicationId = asString(body["applicationId"]);
-    const otp = asString(body["otp"]);
-    if (applicationId === null || otp === null) {
-      res.status(400).json({ error: "applicationId and otp are required" });
+  router.post("/verify-otp", otpLimit, async (req: Request, res: Response) => {
+    const parsed = otpSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json(validationError(parsed.error));
       return;
     }
+    const { applicationId, otp } = parsed.data;
     const application = store.getApplication(applicationId);
     if (application === undefined || application.status !== "pending_otp") {
       res.status(404).json({ error: "no application awaiting OTP" });
@@ -115,16 +109,15 @@ export function authRoutes(
   });
 
   /** Standard login for provisioned users. */
-  router.post("/login", (req: Request, res: Response) => {
-    const body = req.body as Record<string, unknown>;
-    const email = asString(body["email"]);
-    const password = asString(body["password"]);
-    if (email === null || password === null) {
-      res.status(400).json({ error: "email and password are required" });
+  router.post("/login", loginLimit, (req: Request, res: Response) => {
+    const parsed = loginSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json(validationError(parsed.error));
       return;
     }
-    const user = store.findUserByEmail(email);
-    if (user === undefined || user.password !== password) {
+    const { email, password } = parsed.data;
+    const user = store.authenticateUser(email, password);
+    if (user === undefined) {
       res.status(401).json({ error: "invalid credentials" });
       return;
     }
@@ -134,57 +127,8 @@ export function authRoutes(
       role: user.role,
     });
     store.log("api", "login", `${user.email} logged in (${user.role})`);
-    const { password: _password, ...profile } = user;
+    const { passwordHash: _passwordHash, ...profile } = user;
     res.json({ token, user: profile });
-  });
-
-  /**
-   * Issues a short-lived JWT the browser hands to the local RCS-CLI daemon
-   * when opening the terminal bridge WebSocket.
-   */
-  router.post(
-    "/bridge-token",
-    requireAuth(config.jwtSecret),
-    (req: AuthedRequest, res: Response) => {
-      const session = req.session;
-      if (session === undefined) {
-        res.status(401).json({ error: "unauthenticated" });
-        return;
-      }
-      const token = signBridgeToken(config.jwtSecret, {
-        sub: session.sub,
-        email: session.email,
-        role: session.role,
-      });
-      store.log(
-        "local-bridge-agent",
-        "bridge_token_issued",
-        `Bridge token issued to ${session.email}`,
-      );
-      res.json({ token });
-    },
-  );
-
-  /**
-   * Dev-only convenience: lets the Workspace terminal connect without a full
-   * login while developing locally. Disabled in production.
-   */
-  router.post("/dev-bridge-token", (_req: Request, res: Response) => {
-    if (config.isProduction) {
-      res.status(404).json({ error: "not available in production" });
-      return;
-    }
-    const token = signBridgeToken(config.jwtSecret, {
-      sub: "dev-guest",
-      email: "dev-guest@localhost",
-      role: "frontend",
-    });
-    store.log(
-      "local-bridge-agent",
-      "bridge_token_issued",
-      "DEV bridge token issued to local guest (non-production only)",
-    );
-    res.json({ token });
   });
 
   return router;

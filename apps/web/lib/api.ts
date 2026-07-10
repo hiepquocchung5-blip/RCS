@@ -1,5 +1,11 @@
 import type {
+  ChatChannel,
+  ClientOrder,
   DeveloperApplication,
+  Project,
+  Milestone,
+  ResourceRequirement,
+  ShowcaseProject,
   SystemLogEntry,
   Ticket,
   TicketStatus,
@@ -65,6 +71,7 @@ export function apply(input: {
   name: string;
   githubUrl: string;
   requestedRole: string;
+  skillLevel: string;
 }): Promise<{ applicationId: string }> {
   return request("/auth/apply", { method: "POST", body: input });
 }
@@ -77,14 +84,6 @@ export function verifyOtp(
     method: "POST",
     body: { applicationId, otp },
   });
-}
-
-export function fetchBridgeToken(): Promise<{ token: string }> {
-  return request("/auth/bridge-token", { method: "POST", auth: true });
-}
-
-export function fetchDevBridgeToken(): Promise<{ token: string }> {
-  return request("/auth/dev-bridge-token", { method: "POST" });
 }
 
 // -- tickets ------------------------------------------------------------------
@@ -142,6 +141,98 @@ export function rejectApplication(
 
 export function listUsers(): Promise<{ users: UserProfile[] }> {
   return request("/admin/users", { auth: true });
+}
+
+// -- projects & team engine -----------------------------------------------------
+
+export function listProjects(): Promise<{ projects: Project[] }> {
+  return request("/projects", { auth: true });
+}
+
+export function getProject(id: string): Promise<{ project: Project }> {
+  return request(`/projects/${id}`, { auth: true });
+}
+
+export function createProject(input: {
+  name: string;
+  type: string;
+  description: string;
+  clientName: string;
+  isPublic: boolean;
+  techStack: string[];
+  resourceMatrix: ResourceRequirement[];
+}): Promise<{ project: Project }> {
+  return request("/projects", { method: "POST", body: input, auth: true });
+}
+
+export function listCandidates(
+  projectId: string,
+): Promise<{ candidates: UserProfile[] }> {
+  return request(`/projects/${projectId}/candidates`, { auth: true });
+}
+
+export function assignTeamMember(
+  projectId: string,
+  userId: string,
+): Promise<{ project: Project }> {
+  return request(`/projects/${projectId}/team`, {
+    method: "POST",
+    body: { userId },
+    auth: true,
+  });
+}
+
+export function updateTechStack(
+  projectId: string,
+  change: { add?: string; remove?: string },
+): Promise<{ project: Project }> {
+  return request(`/projects/${projectId}/tech`, {
+    method: "POST",
+    body: change,
+    auth: true,
+  });
+}
+
+export function createMilestone(projectId: string, input: { title: string; dueDate: string }): Promise<{ milestone: Milestone }> {
+  return request(`/projects/${projectId}/milestones`, { method: "POST", body: input, auth: true });
+}
+
+export function updateProjectDelivery(projectId: string, input: { deadline?: string | null; ownerId?: string | null; health?: string }): Promise<{ project: Project }> {
+  return request(`/projects/${projectId}/delivery`, { method: "POST", body: input, auth: true });
+}
+
+// -- public client portal --------------------------------------------------------
+
+export function fetchShowcase(): Promise<{ projects: ShowcaseProject[] }> {
+  return request("/showcase");
+}
+
+export function submitOrder(input: {
+  name: string;
+  email: string;
+  company: string;
+  projectType: string;
+  brief: string;
+}): Promise<{ orderId: string }> {
+  return request("/orders", { method: "POST", body: input });
+}
+
+export function listOrders(): Promise<{ orders: ClientOrder[] }> {
+  return request("/orders", { auth: true });
+}
+
+export function reviewOrder(id: string): Promise<{ order: ClientOrder }> {
+  return request(`/orders/${id}/review`, { method: "POST", auth: true });
+}
+
+export function convertOrder(id: string): Promise<{ project: Project }> {
+  return request(`/orders/${id}/convert`, { method: "POST", auth: true });
+}
+
+// -- chat --------------------------------------------------------------------
+
+export function listChatChannels(): Promise<{ channels: ChatChannel[] }> {
+  return request("/chat/channels", { auth: true });
 }
 
 // -- system logs ---------------------------------------------------------------

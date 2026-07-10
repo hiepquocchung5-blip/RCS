@@ -1,6 +1,8 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { Router, type Request, type Response } from "express";
 import { TICKET_NEXT_STATUS } from "@rcs/shared";
 import type { Store } from "../store.js";
+import type { ApiConfig } from "../config.js";
 
 const TICKET_REF_PATTERN = /RCS-\d+/;
 
@@ -10,10 +12,41 @@ const TICKET_REF_PATTERN = /RCS-\d+/;
  * advanced one legal step. States are never skipped: a merged PR for a ticket
  * still in "todo" is refused and logged, not force-completed.
  */
-export function webhookRoutes(store: Store): Router {
+const deliveries = new Set<string>();
+
+interface RawBodyRequest extends Request { rawBody?: Buffer }
+
+function validSignature(secret: string, body: Buffer | undefined, signature: string | undefined): boolean {
+  if (signature === undefined || !signature.startsWith("sha256=")) return false;
+  if (body === undefined) return false;
+  const expected = `sha256=${createHmac("sha256", secret).update(body).digest("hex")}`;
+  const actual = Buffer.from(signature);
+  const wanted = Buffer.from(expected);
+  return actual.length === wanted.length && timingSafeEqual(actual, wanted);
+}
+
+export function webhookRoutes(config: ApiConfig, store: Store): Router {
   const router = Router();
 
-  router.post("/github", (req: Request, res: Response) => {
+  router.post("/github", (req: RawBodyRequest, res: Response) => {
+    if (config.githubWebhookSecret === null) {
+      res.status(503).json({ error: "GitHub webhook integration is not configured" });
+      return;
+    }
+    if (!validSignature(config.githubWebhookSecret, req.rawBody, req.header("x-hub-signature-256"))) {
+      res.status(401).json({ error: "invalid webhook signature" });
+      return;
+    }
+    const deliveryId = req.header("x-github-delivery");
+    if (deliveryId === undefined) {
+      res.status(400).json({ error: "missing GitHub delivery id" });
+      return;
+    }
+    if (deliveries.has(deliveryId)) {
+      res.status(409).json({ error: "webhook delivery already processed" });
+      return;
+    }
+    deliveries.add(deliveryId);
     const body = req.body as Record<string, unknown>;
     const action = body["action"];
     const pr = body["pull_request"] as Record<string, unknown> | undefined;

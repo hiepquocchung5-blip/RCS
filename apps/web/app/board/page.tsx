@@ -33,6 +33,7 @@ export default function BoardPage() {
   const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
   const [role, setRole] = useState<Role | null>(null);
   const [showCreate, setShowCreate] = useState(false);
+  const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
   const refresh = useCallback(async () => {
@@ -45,6 +46,8 @@ export default function BoardPage() {
         return;
       }
       toast("error", error instanceof Error ? error.message : "failed to load tickets");
+    } finally {
+      setLoading(false);
     }
   }, [toast]);
 
@@ -53,6 +56,7 @@ export default function BoardPage() {
     setLoggedIn(session !== null);
     setRole(session?.user.role ?? null);
     if (session !== null) void refresh();
+    else setLoading(false);
   }, [refresh]);
 
   async function moveTicket(ticket: Ticket, to: TicketStatus): Promise<void> {
@@ -72,7 +76,7 @@ export default function BoardPage() {
       );
       toast(
         "success",
-        `${ticket.ref} moved to ${COLUMN_LABELS[to]} — dragged by you, logged to SystemLogs.`,
+        `${ticket.ref} moved to ${COLUMN_LABELS[to]}. The change is recorded in Activity.`,
       );
     } catch (error) {
       toast("error", error instanceof Error ? error.message : "transition failed");
@@ -90,21 +94,35 @@ export default function BoardPage() {
     );
   }
 
+  if (loading || loggedIn === null) {
+    return (
+      <div className="space-y-6 p-6 sm:p-8" aria-busy="true" aria-label="Loading delivery board">
+        <div className="h-10 w-64 animate-pulse rounded bg-rise-surface-2" />
+        <div className="grid gap-4 lg:grid-cols-4">
+          {[0, 1, 2, 3].map((item) => (
+            <div key={item} className="h-72 animate-pulse rounded-xl border border-rise-border bg-rise-surface" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex h-full flex-col gap-4 p-6">
-      <div className="flex items-start justify-between gap-4">
+    <div className="mx-auto flex h-full w-full max-w-[1600px] flex-col gap-6 p-6 sm:p-8">
+      <div className="flex flex-col items-start justify-between gap-4 sm:flex-row">
         <div>
-          <h1 className="text-xl font-bold">Kanban</h1>
-          <p className="text-sm text-rise-muted">
-            Drag tickets one state forward. Merged PRs titled with a ticket ref
-            (e.g. RCS-101) advance tickets automatically via the Git Sync Agent.
+          <p className="font-mono text-xs uppercase tracking-[0.3em] text-rise-accent">Execution</p>
+          <h1 className="font-display mt-2 text-4xl">Delivery Board</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-rise-muted">
+            Track work through a clear, forward-only delivery process. Every
+            transition is attributable and retained in the activity history.
           </p>
         </div>
         {(role === "admin" || role === "pm") && (
           <button
             type="button"
             onClick={() => setShowCreate(true)}
-            className="shrink-0 rounded border border-rise-accent px-3 py-1.5 text-sm text-rise-accent transition-colors hover:bg-rise-accent hover:text-rise-bg"
+            className="shrink-0 rounded-full bg-rise-accent px-4 py-2 text-sm font-semibold text-rise-bg transition-transform hover:scale-105"
           >
             + New ticket
           </button>
@@ -128,11 +146,11 @@ export default function BoardPage() {
             : "A PM or Admin creates tickets; they will appear here."}
         </p>
       )}
-      <div className="grid min-h-0 flex-1 grid-cols-4 gap-4">
+      <div className="grid min-h-0 flex-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         {TICKET_STATUSES.map((status) => (
           <div
             key={status}
-            className="flex min-h-0 flex-col rounded-lg border border-rise-border bg-rise-surface"
+            className="flex min-h-72 flex-col rounded-xl border border-rise-border bg-rise-surface"
             onDragOver={(event) => event.preventDefault()}
             onDrop={(event) => {
               event.preventDefault();
@@ -159,7 +177,7 @@ export default function BoardPage() {
                     onDragStart={(event) =>
                       event.dataTransfer.setData("text/rcs-ticket", ticket.id)
                     }
-                    className={`cursor-grab rounded border-l-2 bg-rise-surface-2 p-3 ${STATUS_ACCENT[status]}`}
+                    className={`cursor-grab rounded-lg border border-rise-border border-l-2 bg-rise-surface-2 p-3 shadow-sm transition-transform hover:-translate-y-0.5 ${STATUS_ACCENT[status]}`}
                   >
                     <div className="flex items-center justify-between">
                       <span className="font-mono text-xs text-rise-accent">
@@ -169,7 +187,10 @@ export default function BoardPage() {
                         {ticket.assigneeRole}
                       </span>
                     </div>
-                    <p className="mt-1 text-sm">{ticket.title}</p>
+                    <p className="mt-2 text-sm font-medium leading-snug">{ticket.title}</p>
+                    {ticket.description.length > 0 && (
+                      <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-rise-muted">{ticket.description}</p>
+                    )}
                   </div>
                 ))}
             </div>
@@ -196,7 +217,7 @@ function CreateTicketForm({
 
   return (
     <form
-      className="flex flex-wrap items-end gap-3 rounded-lg border border-rise-border bg-rise-surface p-4"
+      className="grid gap-4 rounded-xl border border-rise-border bg-rise-surface p-5 md:grid-cols-2 xl:grid-cols-4"
       onSubmit={(event) => {
         event.preventDefault();
         setBusy(true);
@@ -250,13 +271,13 @@ function CreateTicketForm({
           className="rounded border border-rise-border bg-rise-bg px-2 py-1.5 text-sm text-rise-text outline-none focus:border-rise-accent"
         />
       </label>
-      <div className="flex gap-2">
+      <div className="flex items-end gap-2">
         <button
           type="submit"
           disabled={busy}
           className="rounded bg-rise-accent px-3 py-1.5 text-sm font-semibold text-rise-bg disabled:opacity-50"
         >
-          {busy ? "Creating…" : "Create"}
+          {busy ? "Creating…" : "Create ticket"}
         </button>
         <button
           type="button"

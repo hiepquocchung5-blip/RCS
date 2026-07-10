@@ -1,41 +1,44 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { parseChatMessage, type ChatMessage } from "@rcs/shared";
+import { parseChatServerMessage, type ChatMessage } from "@rcs/shared";
 import { API_BASE } from "@/lib/api";
 import { loadSession } from "@/lib/session";
 
-const CHANNEL = "payvia";
-
-export function ChatPanel() {
+export function ChatPanel({ channel, label }: { channel: string; label: string }) {
   const [messages, setMessages] = useState<readonly ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [connected, setConnected] = useState(false);
   const socketRef = useRef<WebSocket | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
-  const author = loadSession()?.user.name ?? "guest";
+  const session = loadSession();
 
   useEffect(() => {
     const wsUrl = `${API_BASE.replace(/^http/, "ws")}/chat`;
     const socket = new WebSocket(wsUrl);
     socketRef.current = socket;
     socket.onopen = () => {
-      setConnected(true);
-      socket.send(
-        JSON.stringify({ type: "chat:join", channel: CHANNEL, author }),
-      );
+      if (session !== null) {
+        socket.send(
+          JSON.stringify({ type: "chat:join", channel, token: session.token }),
+        );
+      }
     };
     socket.onmessage = (event: MessageEvent<string>) => {
-      const parsed = parseChatMessage(event.data);
-      if (parsed !== null && parsed.type === "chat:message") {
+      const parsed = parseChatServerMessage(event.data);
+      if (parsed?.type === "chat:joined") {
+        setConnected(true);
+      } else if (parsed?.type === "chat:message") {
         setMessages((prev) => [...prev, parsed]);
+      } else if (parsed?.type === "chat:error") {
+        setConnected(false);
       }
     };
     socket.onclose = () => setConnected(false);
     socket.onerror = () => setConnected(false);
     return () => socket.close();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [channel, session?.token]);
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
@@ -47,21 +50,14 @@ export function ChatPanel() {
     if (body.length === 0 || socket === null || socket.readyState !== WebSocket.OPEN) {
       return;
     }
-    const message: ChatMessage = {
-      type: "chat:message",
-      channel: CHANNEL,
-      author,
-      body,
-      sentAt: new Date().toISOString(),
-    };
-    socket.send(JSON.stringify(message));
+    socket.send(JSON.stringify({ type: "chat:post", body }));
     setDraft("");
   }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex items-center gap-2 border-b border-rise-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-rise-muted">
-        #{CHANNEL}
+        {label}
         <span
           className={`h-2 w-2 rounded-full ${connected ? "bg-rise-success" : "bg-rise-error"}`}
           title={connected ? "chat connected" : "chat offline"}
@@ -71,7 +67,7 @@ export function ChatPanel() {
         {messages.length === 0 ? (
           <p className="text-xs text-rise-muted">
             Project channel is quiet. Messages broadcast in real time to
-            everyone in #{CHANNEL}.
+            everyone in {label}.
           </p>
         ) : (
           messages.map((message, index) => (
@@ -91,7 +87,7 @@ export function ChatPanel() {
           onKeyDown={(event) => {
             if (event.key === "Enter") send();
           }}
-          placeholder={connected ? `Message #${CHANNEL}` : "chat offline"}
+          placeholder={connected ? `Message ${label}` : "chat offline"}
           disabled={!connected}
           className="min-w-0 flex-1 rounded border border-rise-border bg-rise-bg px-2 py-1 text-sm outline-none focus:border-rise-accent"
         />

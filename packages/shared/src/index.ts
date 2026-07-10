@@ -1,7 +1,6 @@
 /**
- * @rcs/shared — types, constants and the WebSocket message protocol shared by
- * the web frontend (apps/web), the API (apps/api) and the local bridge daemon
- * (packages/rcs-cli).
+ * @rcs/shared — domain types, constants and real-time chat contracts shared
+ * by the web frontend and API.
  */
 
 // ---------------------------------------------------------------------------
@@ -15,11 +14,20 @@ export function isRole(value: string): value is Role {
   return (ROLES as readonly string[]).includes(value);
 }
 
+/** Mentorship & Team Engine — seniority tags used for guided team building. */
+export const SKILL_LEVELS = ["intern", "junior", "mid", "senior"] as const;
+export type SkillLevel = (typeof SKILL_LEVELS)[number];
+
+export function isSkillLevel(value: string): value is SkillLevel {
+  return (SKILL_LEVELS as readonly string[]).includes(value);
+}
+
 export interface UserProfile {
   id: string;
   email: string;
   name: string;
   role: Role;
+  skillLevel: SkillLevel;
   createdAt: string;
 }
 
@@ -39,7 +47,109 @@ export interface DeveloperApplication {
   name: string;
   githubUrl: string;
   requestedRole: Exclude<Role, "admin">;
+  skillLevel: SkillLevel;
   status: ApplicationStatus;
+  createdAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// Projects — typed, tech-stacked, team-built (Mentorship & Team Engine)
+// ---------------------------------------------------------------------------
+
+export const PROJECT_TYPES = [
+  "web_app",
+  "mobile_app",
+  "api_service",
+  "ecommerce",
+  "ai_ml",
+  "devops_infra",
+  "design_system",
+] as const;
+export type ProjectType = (typeof PROJECT_TYPES)[number];
+
+export function isProjectType(value: string): value is ProjectType {
+  return (PROJECT_TYPES as readonly string[]).includes(value);
+}
+
+export const PROJECT_TYPE_LABELS: Readonly<Record<ProjectType, string>> = {
+  web_app: "Web Application",
+  mobile_app: "Mobile App",
+  api_service: "API / Backend Service",
+  ecommerce: "E-Commerce",
+  ai_ml: "AI / ML",
+  devops_infra: "DevOps / Infrastructure",
+  design_system: "Design System",
+};
+
+/** One row of the PM-defined resource matrix, e.g. { backend, senior, 1 }. */
+export interface ResourceRequirement {
+  role: Exclude<Role, "admin" | "pm">;
+  skillLevel: SkillLevel;
+  count: number;
+}
+
+export interface TeamMember {
+  userId: string;
+  name: string;
+  role: Role;
+  skillLevel: SkillLevel;
+}
+
+export const PROJECT_HEALTH_VALUES = ["on_track", "at_risk", "blocked"] as const;
+export type ProjectHealth = (typeof PROJECT_HEALTH_VALUES)[number];
+
+export interface Milestone {
+  id: string;
+  projectId: string;
+  title: string;
+  dueDate: string;
+  status: "planned" | "active" | "complete";
+  createdAt: string;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  type: ProjectType;
+  description: string;
+  clientName: string;
+  /** Public projects appear on the client-facing Showcase portal. */
+  isPublic: boolean;
+  techStack: string[];
+  resourceMatrix: ResourceRequirement[];
+  team: TeamMember[];
+  milestones: Milestone[];
+  deadline: string | null;
+  ownerId: string | null;
+  ownerName: string | null;
+  health: ProjectHealth;
+  createdAt: string;
+}
+
+/** Client-safe subset served by the public Showcase endpoint. */
+export interface ShowcaseProject {
+  id: string;
+  name: string;
+  type: ProjectType;
+  description: string;
+  clientName: string;
+  techStack: string[];
+  teamSize: number;
+  createdAt: string;
+}
+
+// ---------------------------------------------------------------------------
+// Client orders — the public "Request a project" pipeline
+// ---------------------------------------------------------------------------
+
+export interface ClientOrder {
+  id: string;
+  name: string;
+  email: string;
+  company: string;
+  projectType: ProjectType;
+  brief: string;
+  status: "new" | "reviewed" | "converted";
   createdAt: string;
 }
 
@@ -95,7 +205,6 @@ export interface Ticket {
 export type SystemLogActor =
   | "onboarding-agent"
   | "git-sync-agent"
-  | "local-bridge-agent"
   | "api"
   | "user";
 
@@ -108,283 +217,33 @@ export interface SystemLogEntry {
 }
 
 // ---------------------------------------------------------------------------
-// Terminal bridge protocol (browser xterm.js <-> RCS-CLI daemon)
+// Chat protocol (browser <-> API) — JWT-authenticated, strictly siloed rooms.
+// Channel ids: "project:<projectId>" (team members + admin/pm only),
+// "role:<role>" (that role only) and "tech:<slug>" (any authenticated dev).
 // ---------------------------------------------------------------------------
 
-export const BRIDGE_DEFAULT_PORT = 3711;
+export interface ChatChannel {
+  id: string;
+  label: string;
+  kind: "project" | "role" | "tech";
+}
 
-/** Sent by the browser as the very first message after the socket opens. */
-export interface TermAuthMessage {
-  type: "term:auth";
+/** Client → server: authenticate the socket and enter one channel. */
+export interface ChatJoinMessage {
+  type: "chat:join";
+  channel: string;
   token: string;
 }
 
-export interface TermInputMessage {
-  type: "term:input";
-  data: string;
+/** Client → server: post to the joined channel (author comes from the JWT). */
+export interface ChatPostMessage {
+  type: "chat:post";
+  body: string;
 }
 
-export interface TermOutputMessage {
-  type: "term:output";
-  data: string;
-}
+export type ChatClientMessage = ChatJoinMessage | ChatPostMessage;
 
-export interface TermResizeMessage {
-  type: "term:resize";
-  cols: number;
-  rows: number;
-}
-
-export interface TermReadyMessage {
-  type: "term:ready";
-  shell: string;
-  mode: "pty" | "pipe";
-}
-
-export interface TermExitMessage {
-  type: "term:exit";
-  code: number | null;
-}
-
-export interface TermErrorMessage {
-  type: "term:error";
-  message: string;
-}
-
-// File-sync messages: the Workspace browses and saves REAL files in the
-// developer's local working copy (e.g. a repo cloned from GitHub) through the
-// same authenticated bridge socket. Requests carry an `id` echoed by the
-// matching response.
-
-export interface FsListMessage {
-  type: "fs:list";
-  id: string;
-}
-
-export interface FsReadMessage {
-  type: "fs:read";
-  id: string;
-  path: string;
-}
-
-export interface FsWriteMessage {
-  type: "fs:write";
-  id: string;
-  path: string;
-  content: string;
-}
-
-export interface FsTreeMessage {
-  type: "fs:tree";
-  id: string;
-  /** Basename of the workspace root directory on the developer's machine. */
-  root: string;
-  files: string[];
-}
-
-export interface FsFileMessage {
-  type: "fs:file";
-  id: string;
-  path: string;
-  content: string;
-}
-
-export interface FsOkMessage {
-  type: "fs:ok";
-  id: string;
-  path: string;
-}
-
-export interface FsErrorMessage {
-  type: "fs:error";
-  id: string;
-  message: string;
-}
-
-/** Files larger than this are refused by the daemon (editor safety). */
-export const FS_MAX_FILE_BYTES = 1_000_000;
-/** The daemon stops walking the tree after this many files. */
-export const FS_MAX_TREE_FILES = 2000;
-
-/** Requests the real `git status` of the workspace root. */
-export interface GitStatusRequestMessage {
-  type: "git:status";
-  id: string;
-}
-
-export interface GitState {
-  isRepo: boolean;
-  branch: string;
-  ahead: number;
-  behind: number;
-  staged: string[];
-  modified: string[];
-  untracked: string[];
-  lastCommit: string;
-}
-
-export interface GitStateMessage extends GitState {
-  type: "git:state";
-  id: string;
-}
-
-export type BridgeClientMessage =
-  | TermAuthMessage
-  | TermInputMessage
-  | TermResizeMessage
-  | FsListMessage
-  | FsReadMessage
-  | FsWriteMessage
-  | GitStatusRequestMessage;
-
-export type BridgeServerMessage =
-  | TermOutputMessage
-  | TermReadyMessage
-  | TermExitMessage
-  | TermErrorMessage
-  | FsTreeMessage
-  | FsFileMessage
-  | FsOkMessage
-  | FsErrorMessage
-  | GitStateMessage;
-
-export function parseBridgeClientMessage(
-  raw: string,
-): BridgeClientMessage | null {
-  const parsed: unknown = JSON.parse(raw);
-  if (typeof parsed !== "object" || parsed === null) return null;
-  const msg = parsed as Record<string, unknown>;
-  switch (msg["type"]) {
-    case "term:auth":
-      return typeof msg["token"] === "string"
-        ? { type: "term:auth", token: msg["token"] }
-        : null;
-    case "term:input":
-      return typeof msg["data"] === "string"
-        ? { type: "term:input", data: msg["data"] }
-        : null;
-    case "term:resize":
-      return typeof msg["cols"] === "number" && typeof msg["rows"] === "number"
-        ? { type: "term:resize", cols: msg["cols"], rows: msg["rows"] }
-        : null;
-    case "fs:list":
-      return typeof msg["id"] === "string"
-        ? { type: "fs:list", id: msg["id"] }
-        : null;
-    case "fs:read":
-      return typeof msg["id"] === "string" && typeof msg["path"] === "string"
-        ? { type: "fs:read", id: msg["id"], path: msg["path"] }
-        : null;
-    case "fs:write":
-      return typeof msg["id"] === "string" &&
-        typeof msg["path"] === "string" &&
-        typeof msg["content"] === "string"
-        ? {
-            type: "fs:write",
-            id: msg["id"],
-            path: msg["path"],
-            content: msg["content"],
-          }
-        : null;
-    case "git:status":
-      return typeof msg["id"] === "string"
-        ? { type: "git:status", id: msg["id"] }
-        : null;
-    default:
-      return null;
-  }
-}
-
-export function parseBridgeServerMessage(
-  raw: string,
-): BridgeServerMessage | null {
-  const parsed: unknown = JSON.parse(raw);
-  if (typeof parsed !== "object" || parsed === null) return null;
-  const msg = parsed as Record<string, unknown>;
-  switch (msg["type"]) {
-    case "term:output":
-      return typeof msg["data"] === "string"
-        ? { type: "term:output", data: msg["data"] }
-        : null;
-    case "term:ready":
-      return typeof msg["shell"] === "string" &&
-        (msg["mode"] === "pty" || msg["mode"] === "pipe")
-        ? { type: "term:ready", shell: msg["shell"], mode: msg["mode"] }
-        : null;
-    case "term:exit":
-      return typeof msg["code"] === "number" || msg["code"] === null
-        ? { type: "term:exit", code: msg["code"] as number | null }
-        : null;
-    case "term:error":
-      return typeof msg["message"] === "string"
-        ? { type: "term:error", message: msg["message"] }
-        : null;
-    case "fs:tree":
-      return typeof msg["id"] === "string" &&
-        typeof msg["root"] === "string" &&
-        Array.isArray(msg["files"]) &&
-        (msg["files"] as unknown[]).every((f) => typeof f === "string")
-        ? {
-            type: "fs:tree",
-            id: msg["id"],
-            root: msg["root"],
-            files: msg["files"] as string[],
-          }
-        : null;
-    case "fs:file":
-      return typeof msg["id"] === "string" &&
-        typeof msg["path"] === "string" &&
-        typeof msg["content"] === "string"
-        ? {
-            type: "fs:file",
-            id: msg["id"],
-            path: msg["path"],
-            content: msg["content"],
-          }
-        : null;
-    case "fs:ok":
-      return typeof msg["id"] === "string" && typeof msg["path"] === "string"
-        ? { type: "fs:ok", id: msg["id"], path: msg["path"] }
-        : null;
-    case "fs:error":
-      return typeof msg["id"] === "string" && typeof msg["message"] === "string"
-        ? { type: "fs:error", id: msg["id"], message: msg["message"] }
-        : null;
-    case "git:state": {
-      const strings = (value: unknown): value is string[] =>
-        Array.isArray(value) && value.every((v) => typeof v === "string");
-      return typeof msg["id"] === "string" &&
-        typeof msg["isRepo"] === "boolean" &&
-        typeof msg["branch"] === "string" &&
-        typeof msg["ahead"] === "number" &&
-        typeof msg["behind"] === "number" &&
-        strings(msg["staged"]) &&
-        strings(msg["modified"]) &&
-        strings(msg["untracked"]) &&
-        typeof msg["lastCommit"] === "string"
-        ? {
-            type: "git:state",
-            id: msg["id"],
-            isRepo: msg["isRepo"],
-            branch: msg["branch"],
-            ahead: msg["ahead"],
-            behind: msg["behind"],
-            staged: msg["staged"],
-            modified: msg["modified"],
-            untracked: msg["untracked"],
-            lastCommit: msg["lastCommit"],
-          }
-        : null;
-    }
-    default:
-      return null;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Project chat protocol (browser <-> API, per-project channels)
-// ---------------------------------------------------------------------------
-
+/** Server → clients in the channel. */
 export interface ChatMessage {
   type: "chat:message";
   channel: string;
@@ -393,25 +252,39 @@ export interface ChatMessage {
   sentAt: string;
 }
 
-export interface ChatJoinMessage {
-  type: "chat:join";
+export interface ChatJoinedMessage {
+  type: "chat:joined";
   channel: string;
-  author: string;
 }
 
-export type ChatClientMessage = ChatJoinMessage | ChatMessage;
+export interface ChatErrorMessage {
+  type: "chat:error";
+  message: string;
+}
 
-export function parseChatMessage(raw: string): ChatClientMessage | null {
+export type ChatServerMessage = ChatMessage | ChatJoinedMessage | ChatErrorMessage;
+
+export function parseChatClientMessage(raw: string): ChatClientMessage | null {
   const parsed: unknown = JSON.parse(raw);
   if (typeof parsed !== "object" || parsed === null) return null;
   const msg = parsed as Record<string, unknown>;
   if (
     msg["type"] === "chat:join" &&
     typeof msg["channel"] === "string" &&
-    typeof msg["author"] === "string"
+    typeof msg["token"] === "string"
   ) {
-    return { type: "chat:join", channel: msg["channel"], author: msg["author"] };
+    return { type: "chat:join", channel: msg["channel"], token: msg["token"] };
   }
+  if (msg["type"] === "chat:post" && typeof msg["body"] === "string") {
+    return { type: "chat:post", body: msg["body"] };
+  }
+  return null;
+}
+
+export function parseChatServerMessage(raw: string): ChatServerMessage | null {
+  const parsed: unknown = JSON.parse(raw);
+  if (typeof parsed !== "object" || parsed === null) return null;
+  const msg = parsed as Record<string, unknown>;
   if (
     msg["type"] === "chat:message" &&
     typeof msg["channel"] === "string" &&
@@ -426,6 +299,12 @@ export function parseChatMessage(raw: string): ChatClientMessage | null {
       body: msg["body"],
       sentAt: msg["sentAt"],
     };
+  }
+  if (msg["type"] === "chat:joined" && typeof msg["channel"] === "string") {
+    return { type: "chat:joined", channel: msg["channel"] };
+  }
+  if (msg["type"] === "chat:error" && typeof msg["message"] === "string") {
+    return { type: "chat:error", message: msg["message"] };
   }
   return null;
 }

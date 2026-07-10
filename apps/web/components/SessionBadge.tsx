@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { clearSession, loadSession, type Session } from "@/lib/session";
 
 export function SessionBadge() {
-  const [session, setSession] = useState<Session | null>(null);
+  const [session, setSession] = useState<Session | null | undefined>(undefined);
 
   useEffect(() => {
     setSession(loadSession());
@@ -18,25 +18,24 @@ export function SessionBadge() {
     };
   }, []);
 
+  if (session === undefined) {
+    return <div aria-hidden="true" className="h-8 w-20 animate-pulse rounded-full bg-rise-surface-2" />;
+  }
+
   if (session === null) {
     return (
-      <div className="flex items-center gap-3 text-sm">
-        <Link href="/apply" className="text-rise-muted hover:text-rise-accent">
-          Apply
-        </Link>
-        <Link
-          href="/login"
-          className="rounded border border-rise-accent px-3 py-1 text-rise-accent transition-colors hover:bg-rise-accent hover:text-rise-bg"
-        >
-          Log in
-        </Link>
-      </div>
+      <Link
+        href="/login"
+        className="whitespace-nowrap rounded-full bg-rise-accent px-4 py-1.5 text-sm font-semibold text-rise-bg transition-transform hover:scale-105"
+      >
+        Dev Hub
+      </Link>
     );
   }
 
   return (
     <div className="flex items-center gap-3 text-sm">
-      <span className="text-rise-muted">
+      <span className="hidden text-rise-muted lg:inline">
         {session.user.name}
         <span className="ml-1 rounded bg-rise-surface-2 px-1.5 py-0.5 text-xs uppercase text-rise-accent">
           {session.user.role}
@@ -48,6 +47,7 @@ export function SessionBadge() {
         onClick={() => {
           clearSession();
           window.dispatchEvent(new Event("rcs:session"));
+          window.location.assign("/");
         }}
       >
         Log out
