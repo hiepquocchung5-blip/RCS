@@ -141,7 +141,7 @@ export default function ProjectDetailPage() {
         </div>
         <h1 className="font-display mt-3 text-4xl sm:text-5xl">{project.name}</h1>
         <p className="mt-3 max-w-3xl text-sm leading-relaxed text-rise-muted">{project.description}</p>
-        {project.clientName.length > 0 && <p className="mt-2 text-sm">Client: <span className="text-rise-gold">{project.clientName}</span></p>}
+        {project.clientName && project.clientName.length > 0 && <p className="mt-2 text-sm">Client: <span className="text-rise-gold">{project.clientName}</span></p>}
         <div className="mt-3 flex flex-wrap gap-5 text-xs text-rise-muted">
           <span>Owner: <strong className="text-rise-text">{project.ownerName ?? "Not assigned"}</strong></span>
           <span>Deadline: <strong className="text-rise-text">{project.deadline ?? "Not scheduled"}</strong></span>

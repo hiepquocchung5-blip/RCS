@@ -224,7 +224,7 @@ function ProjectCard({
             public showcase
           </span>
         )}
-        {project.clientName.length > 0 && (
+        {project.clientName && project.clientName.length > 0 && (
           <span className="text-xs text-rise-muted">for {project.clientName}</span>
         )}
       </div>

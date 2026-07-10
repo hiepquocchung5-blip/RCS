@@ -73,7 +73,7 @@ export default function ShowcasePage() {
                       {PROJECT_TYPE_LABELS[project.type]}
                     </span>
                   </div>
-                  {project.clientName.length > 0 && (
+                  {project.clientName && project.clientName.length > 0 && (
                     <p className="mt-1 font-mono text-xs text-rise-gold">
                       for {project.clientName}
                     </p>
