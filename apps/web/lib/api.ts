@@ -16,6 +16,9 @@ import { loadSession } from "./session";
 export const API_BASE =
   process.env.NEXT_PUBLIC_RCS_API ?? "http://localhost:4000";
 
+export const AUTH_BASE =
+  process.env.NEXT_PUBLIC_RCS_AUTH ?? `${API_BASE}/auth`;
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -37,14 +40,16 @@ async function request<T>(
     headers["authorization"] = `Bearer ${session.token}`;
   }
   let response: Response;
+  const isAuthPath = path.startsWith("/auth/");
+  const url = isAuthPath ? `${AUTH_BASE}${path.slice(5)}` : `${API_BASE}${path}`;
   try {
-    response = await fetch(`${API_BASE}${path}`, {
+    response = await fetch(url, {
       method: init?.method ?? "GET",
       headers,
       body: init?.body !== undefined ? JSON.stringify(init.body) : undefined,
     });
   } catch {
-    throw new ApiError(0, `RCS API unreachable at ${API_BASE} — is "npm run dev:api" running?`);
+    throw new ApiError(0, `RCS API unreachable at ${url} — is "npm run dev:api" running?`);
   }
   const data: unknown = await response.json().catch(() => ({}));
   if (!response.ok) {
