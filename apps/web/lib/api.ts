@@ -34,10 +34,20 @@ async function request<T>(
 ): Promise<T> {
   const headers: Record<string, string> = {};
   if (init?.body !== undefined) headers["content-type"] = "application/json";
+  const session = loadSession();
   if (init?.auth === true) {
-    const session = loadSession();
     if (session === null) throw new ApiError(401, "not logged in");
     headers["authorization"] = `Bearer ${session.token}`;
+  } else if (session !== null) {
+    headers["authorization"] = `Bearer ${session.token}`;
+  }
+  if (typeof window !== "undefined") {
+    let guestId = window.localStorage.getItem("rcs_guest_session");
+    if (!guestId) {
+      guestId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      window.localStorage.setItem("rcs_guest_session", guestId);
+    }
+    headers["x-guest-session"] = guestId;
   }
   let response: Response;
   const isAuthPath = path.startsWith("/auth/");
@@ -210,6 +220,13 @@ export function updateProjectDelivery(projectId: string, input: { deadline?: str
 
 export function fetchShowcase(): Promise<{ projects: ShowcaseProject[] }> {
   return request("/showcase");
+}
+
+export function reactToShowcase(projectId: string, reactionType: "star" | "like" | "love" | "fire"): Promise<{
+  reactions: { star: number; like: number; love: number; fire: number };
+  userReactions: string[];
+}> {
+  return request(`/showcase/${projectId}/react`, { method: "POST", body: { reactionType } });
 }
 
 export function submitOrder(input: {

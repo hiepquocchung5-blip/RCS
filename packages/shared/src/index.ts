@@ -123,6 +123,9 @@ export interface Project {
   ownerId: string | null;
   ownerName: string | null;
   health: ProjectHealth;
+  gitLink: string | null;
+  liveLink: string | null;
+  views: number;
   createdAt: string;
 }
 
@@ -135,6 +138,16 @@ export interface ShowcaseProject {
   clientName: string;
   techStack: string[];
   teamSize: number;
+  gitLink: string | null;
+  liveLink: string | null;
+  views: number;
+  reactions: {
+    star: number;
+    like: number;
+    love: number;
+    fire: number;
+  };
+  userReactions: string[];
   createdAt: string;
 }
 

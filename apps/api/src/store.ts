@@ -47,6 +47,7 @@ export class Store {
   private readonly orders = new Map<string, ClientOrder>();
   private readonly logs: SystemLogEntry[] = [];
   private readonly magicLinks = new Map<string, MagicLink>();
+  private readonly mockReactions = new Map<string, Map<string, Set<string>>>();
   private ticketCounter = 100;
   private readonly pool?: Pool;
 
@@ -341,6 +342,8 @@ export class Store {
     isPublic: boolean;
     techStack: string[];
     resourceMatrix: ResourceRequirement[];
+    gitLink?: string | null;
+    liveLink?: string | null;
   }): Promise<Project> {
     const project: Project = {
       id: randomUUID(),
@@ -357,6 +360,9 @@ export class Store {
       ownerId: null,
       ownerName: null,
       health: "on_track",
+      gitLink: input.gitLink ?? null,
+      liveLink: input.liveLink ?? null,
+      views: 0,
       createdAt: new Date().toISOString(),
     };
     if (this.pool) {
@@ -364,8 +370,8 @@ export class Store {
       try {
         await client.query("BEGIN");
         await client.query(
-          `INSERT INTO projects (id, name, type, description, client_name, is_public, tech_stack, health, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-          [project.id, project.name, project.type, project.description, project.clientName, project.isPublic, project.techStack, project.health, project.createdAt]
+          `INSERT INTO projects (id, name, type, description, client_name, is_public, tech_stack, health, git_link, live_link, views, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+          [project.id, project.name, project.type, project.description, project.clientName, project.isPublic, project.techStack, project.health, project.gitLink, project.liveLink, project.views, project.createdAt]
         );
         for (const req of project.resourceMatrix) {
           await client.query(
@@ -380,11 +386,10 @@ export class Store {
       } finally {
         client.release();
       }
-      return (await getFullProject(this.pool, project.id))!;
     } else {
       this.projects.set(project.id, project);
-      return project;
     }
+    return project;
   }
 
   async getProject(id: string): Promise<Project | undefined> {
@@ -409,13 +414,39 @@ export class Store {
   }
 
   /** Client-safe view for the public Showcase portal (is_public only). */
-  async listShowcase(): Promise<readonly ShowcaseProject[]> {
+  async listShowcase(sessionOrGuestId?: string | null): Promise<readonly ShowcaseProject[]> {
     if (this.pool) {
       const res = await this.pool.query(`SELECT id FROM projects WHERE is_public = true`);
       const projects: ShowcaseProject[] = [];
       for (const r of res.rows) {
         const p = await getFullProject(this.pool, r.id);
         if (p) {
+          // Increment views
+          await this.pool.query(`UPDATE projects SET views = views + 1 WHERE id = $1`, [p.id]);
+          
+          // Get reactions count
+          const reactionsRes = await this.pool.query<{ reaction_type: string; count: string }>(
+            `SELECT reaction_type, COUNT(*)::integer as count FROM showcase_reactions WHERE project_id = $1 GROUP BY reaction_type`,
+            [p.id]
+          );
+          const reactions = { star: 0, like: 0, love: 0, fire: 0 };
+          for (const row of reactionsRes.rows) {
+            const type = row.reaction_type as keyof typeof reactions;
+            if (type in reactions) {
+              reactions[type] = Number(row.count);
+            }
+          }
+
+          // User reactions
+          let userReactions: string[] = [];
+          if (sessionOrGuestId) {
+            const userReactionsRes = await this.pool.query<{ reaction_type: string }>(
+              `SELECT reaction_type FROM showcase_reactions WHERE project_id = $1 AND user_session_id = $2`,
+              [p.id, sessionOrGuestId]
+            );
+            userReactions = userReactionsRes.rows.map(ur => ur.reaction_type);
+          }
+
           projects.push({
             id: p.id,
             name: p.name,
@@ -424,24 +455,126 @@ export class Store {
             clientName: p.clientName,
             techStack: p.techStack,
             teamSize: p.team.length,
+            gitLink: p.gitLink,
+            liveLink: p.liveLink,
+            views: p.views + 1, // Add the current view
+            reactions,
+            userReactions,
             createdAt: p.createdAt,
           });
         }
       }
       return projects;
     }
-    return [...this.projects.values()]
-      .filter((project) => project.isPublic)
-      .map((project) => ({
-        id: project.id,
-        name: project.name,
-        type: project.type,
-        description: project.description,
-        clientName: project.clientName,
-        techStack: project.techStack,
-        teamSize: project.team.length,
-        createdAt: project.createdAt,
-      }));
+
+    // In-memory fallback
+    const projects: ShowcaseProject[] = [];
+    for (const project of this.projects.values()) {
+      if (project.isPublic) {
+        // Increment views
+        project.views = (project.views ?? 0) + 1;
+
+        const projectReactions = this.mockReactions.get(project.id) || new Map<string, Set<string>>();
+        const reactions = { star: 0, like: 0, love: 0, fire: 0 };
+        for (const [_, rxns] of projectReactions.entries()) {
+          for (const r of rxns) {
+            const type = r as keyof typeof reactions;
+            if (type in reactions) reactions[type]++;
+          }
+        }
+
+        let userReactions: string[] = [];
+        if (sessionOrGuestId && projectReactions.has(sessionOrGuestId)) {
+          userReactions = [...projectReactions.get(sessionOrGuestId)!];
+        }
+
+        projects.push({
+          id: project.id,
+          name: project.name,
+          type: project.type,
+          description: project.description,
+          clientName: project.clientName,
+          techStack: project.techStack,
+          teamSize: project.team.length,
+          gitLink: project.gitLink ?? null,
+          liveLink: project.liveLink ?? null,
+          views: project.views,
+          reactions,
+          userReactions,
+          createdAt: project.createdAt,
+        });
+      }
+    }
+    return projects;
+  }
+
+  async reactToShowcase(
+    projectId: string,
+    sessionOrGuestId: string,
+    reactionType: string
+  ): Promise<{ reactions: { star: number; like: number; love: number; fire: number }; userReactions: string[] }> {
+    if (this.pool) {
+      const existing = await this.pool.query(
+        `SELECT 1 FROM showcase_reactions WHERE project_id = $1 AND user_session_id = $2 AND reaction_type = $3`,
+        [projectId, sessionOrGuestId, reactionType]
+      );
+      if ((existing.rowCount ?? 0) > 0) {
+        await this.pool.query(
+          `DELETE FROM showcase_reactions WHERE project_id = $1 AND user_session_id = $2 AND reaction_type = $3`,
+          [projectId, sessionOrGuestId, reactionType]
+        );
+      } else {
+        await this.pool.query(
+          `INSERT INTO showcase_reactions (project_id, user_session_id, reaction_type) VALUES ($1, $2, $3)`,
+          [projectId, sessionOrGuestId, reactionType]
+        );
+      }
+
+      const counts = await this.pool.query<{ reaction_type: string; count: string }>(
+        `SELECT reaction_type, COUNT(*)::integer as count FROM showcase_reactions WHERE project_id = $1 GROUP BY reaction_type`,
+        [projectId]
+      );
+      const reactions = { star: 0, like: 0, love: 0, fire: 0 };
+      for (const row of counts.rows) {
+        const type = row.reaction_type as keyof typeof reactions;
+        if (type in reactions) reactions[type] = Number(row.count);
+      }
+
+      const userReactionsRes = await this.pool.query<{ reaction_type: string }>(
+        `SELECT reaction_type FROM showcase_reactions WHERE project_id = $1 AND user_session_id = $2`,
+        [projectId, sessionOrGuestId]
+      );
+      const userReactions = userReactionsRes.rows.map(ur => ur.reaction_type);
+
+      return { reactions, userReactions };
+    } else {
+      if (!this.mockReactions.has(projectId)) {
+        this.mockReactions.set(projectId, new Map());
+      }
+      const projectReactions = this.mockReactions.get(projectId)!;
+      if (!projectReactions.has(sessionOrGuestId)) {
+        projectReactions.set(sessionOrGuestId, new Set());
+      }
+      const userReactionsSet = projectReactions.get(sessionOrGuestId)!;
+      if (userReactionsSet.has(reactionType)) {
+        userReactionsSet.delete(reactionType);
+      } else {
+        userReactionsSet.add(reactionType);
+      }
+
+      const reactions = { star: 0, like: 0, love: 0, fire: 0 };
+      for (const [_, rxns] of projectReactions.entries()) {
+        for (const r of rxns) {
+          const type = r as keyof typeof reactions;
+          if (type in reactions) reactions[type]++;
+        }
+      }
+
+      return {
+        reactions,
+        userReactions: [...userReactionsSet]
+      };
+    }
   }
 
   /** Team-managed tech stack: add or remove one technology, deterministically. */

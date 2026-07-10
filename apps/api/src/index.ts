@@ -13,6 +13,7 @@ import { projectRoutes } from "./routes/projects.js";
 import { orderRoutes } from "./routes/orders.js";
 import { webhookRoutes } from "./routes/webhooks.js";
 import { requireAuth, requireRole, errorHandler } from "./middleware.js";
+import { verifyToken } from "./auth/tokens.js";
 import { attachChat, chatRoutes } from "./chat.js";
 import { metrics, requestContext } from "./observability.js";
 
@@ -103,7 +104,18 @@ if (process.env.RCS_SEED_DEMO === "true") {
 }
 
 const app = express();
-app.use(cors({ origin: config.webOrigins }));
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (config.webOrigins.includes(origin) || origin.endsWith("risecorestudio.com")) {
+      return callback(null, true);
+    }
+    callback(null, false);
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "x-guest-session"]
+}));
 app.use(express.json({
   verify(req, _res, buffer) {
     (req as express.Request & { rawBody?: Buffer }).rawBody = Buffer.from(buffer);
@@ -140,8 +152,48 @@ app.use("/chat", chatRoutes(config, store));
 app.use("/webhooks", webhookRoutes(config, store, redisClient));
 
 // Public, client-facing: only is_public projects, client-safe fields.
-app.get("/showcase", async (_req, res) => {
-  res.json({ projects: await store.listShowcase() });
+app.get("/showcase", async (req, res) => {
+  let sessionOrGuestId = req.headers["x-guest-session"] as string | undefined;
+  
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    try {
+      const claims = verifyToken(config.jwtSecret, authHeader.substring(7), "session");
+      if (claims) sessionOrGuestId = claims.sub;
+    } catch {
+      // Ignore token verification errors for public endpoints
+    }
+  }
+  
+  res.json({ projects: await store.listShowcase(sessionOrGuestId || null) });
+});
+
+app.post("/showcase/:id/react", async (req, res) => {
+  const projectId = req.params.id;
+  const { reactionType } = req.body;
+  if (!reactionType || !["star", "like", "love", "fire"].includes(reactionType)) {
+    res.status(400).json({ error: "invalid reaction type" });
+    return;
+  }
+
+  let sessionOrGuestId = req.headers["x-guest-session"] as string | undefined;
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    try {
+      const claims = verifyToken(config.jwtSecret, authHeader.substring(7), "session");
+      if (claims) sessionOrGuestId = claims.sub;
+    } catch {
+      // Ignore token verification errors
+    }
+  }
+
+  if (!sessionOrGuestId) {
+    res.status(400).json({ error: "guest session id or user authorization is required to react" });
+    return;
+  }
+
+  const result = await store.reactToShowcase(projectId, sessionOrGuestId, reactionType);
+  res.json(result);
 });
 
 app.get("/logs", requireAuth(config.jwtSecret), requireRole("admin", "pm"), async (_req, res) => {

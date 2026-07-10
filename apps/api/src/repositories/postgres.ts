@@ -67,6 +67,9 @@ export async function getFullProject(client: Pool | PoolClient, projectId: strin
     ownerId: p.owner_id ?? null,
     ownerName: p.owner_name ?? null,
     health: p.health as ProjectHealth,
+    gitLink: p.git_link ?? null,
+    liveLink: p.live_link ?? null,
+    views: p.views ?? 0,
     createdAt: new Date(p.created_at).toISOString(),
   };
 }
