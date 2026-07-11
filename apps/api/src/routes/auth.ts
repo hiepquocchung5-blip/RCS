@@ -31,6 +31,23 @@ export function authRoutes(
   });
 
   /**
+   * The auth service is a JSON API, but auth.<domain> proxies straight to it,
+   * so people typing that address land here with a browser. Send them to the
+   * real login page instead of raw JSON.
+   */
+  router.get(["/", "/login"], (_req: Request, res: Response) => {
+    if (config.loginRedirectUrl === null) {
+      res.status(404).json({
+        error: "not_found",
+        message: "this is the RCS auth API; sign in on the web portal",
+        code: 404,
+      });
+      return;
+    }
+    res.redirect(302, config.loginRedirectUrl);
+  });
+
+  /**
    * Step 1 — developer applies. An OTP is issued with a strict 5-minute TTL.
    * In production the Onboarding Agent emails it; in dev we log it so the
    * flow can be exercised end-to-end.

@@ -52,6 +52,7 @@ PORT=4000
 RCS_API_BASE_URL=https://risecorestudio.com/api
 RCS_WEB_ORIGIN=https://risecorestudio.com,https://www.risecorestudio.com
 RCS_TRUSTED_DOMAIN=risecorestudio.com
+RCS_LOGIN_REDIRECT_URL=https://developers.risecorestudio.com/login
 RCS_JWT_SECRET=<openssl-rand-hex-32>
 RCS_GITHUB_WEBHOOK_SECRET=<openssl-rand-hex-32>
 RCS_ADMIN_EMAIL=<admin-email>

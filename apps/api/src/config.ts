@@ -19,6 +19,11 @@ export interface ApiConfig {
    * (RCS_TRUSTED_DOMAIN, e.g. "risecorestudio.com"); null = exact origins only.
    */
   trustedDomain: string | null;
+  /**
+   * Where browsers landing on the auth API (GET / or /login, e.g. via the
+   * auth.<domain> proxy) are redirected (RCS_LOGIN_REDIRECT_URL); null = 404.
+   */
+  loginRedirectUrl: string | null;
   isProduction: boolean;
 }
 
@@ -42,6 +47,7 @@ export function loadConfig(): ApiConfig {
       .map((origin) => origin.trim())
       .filter((origin) => origin.length > 0),
     trustedDomain: process.env.RCS_TRUSTED_DOMAIN ?? null,
+    loginRedirectUrl: process.env.RCS_LOGIN_REDIRECT_URL ?? null,
     isProduction,
   };
 }
