@@ -62,7 +62,9 @@ export function attachChat(server: Server, store: Store, jwtSecret: string): voi
   };
 
   wss.on("connection", (socket: WebSocket) => {
-    socket.on("message", async (raw: Buffer | ArrayBuffer | Buffer[]) => {
+    // The handler is async; a rejected store call must never become an
+    // unhandled rejection (it would take the whole API process down).
+    const handleMessage = async (raw: Buffer | ArrayBuffer | Buffer[]): Promise<void> => {
       let msg;
       try {
         msg = parseChatClientMessage(String(raw));
@@ -132,6 +134,17 @@ export function attachChat(server: Server, store: Store, jwtSecret: string): voi
           client.send(JSON.stringify(message));
         }
       }
+    };
+
+    socket.on("message", (raw: Buffer | ArrayBuffer | Buffer[]) => {
+      handleMessage(raw).catch((error: unknown) => {
+        console.error("[rcs-chat] message handling failed", error);
+        send(socket, {
+          type: "chat:error",
+          message: "chat is temporarily unavailable; please try again",
+          code: 500,
+        });
+      });
     });
 
     socket.on("close", () => {

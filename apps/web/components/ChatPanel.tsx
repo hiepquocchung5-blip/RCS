@@ -14,6 +14,9 @@ export function ChatPanel({ channel, label }: { channel: string; label: string }
   const session = loadSession();
 
   useEffect(() => {
+    // Each (re)join replays server history, so start from a clean list —
+    // otherwise the replay is appended to stale messages and duplicates them.
+    setMessages([]);
     const wsUrl = `${API_BASE.replace(/^http/, "ws")}/chat`;
     const socket = new WebSocket(wsUrl);
     socketRef.current = socket;
