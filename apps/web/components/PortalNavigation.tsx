@@ -7,6 +7,7 @@ import { loadSession, type Session } from "@/lib/session";
 
 const PUBLIC_LINKS = [
   { href: "/showcase", label: "Our work" },
+  { href: "/about", label: "About" },
   { href: "/request", label: "Start a project" },
 ] as const;
 
