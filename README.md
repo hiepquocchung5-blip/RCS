@@ -2,6 +2,12 @@
 
 RCS is an agency delivery platform for managing client requests, software projects, delivery teams and transparent execution in one place.
 
+## Founders and mission
+
+RiseCoreStudio was founded by **Filip**, **Shayy** and **Pai Htoo Khant**.
+
+Our mission is to recruit and train young people in the technology field and guide them toward a high level of innovation. New developers join through the public application flow, verify their email with a one-time code, and — once approved — grow inside real project squads with mentorship from senior engineers.
+
 ## Product areas
 
 - **Client experience** — a public showcase and structured project-request flow.
@@ -39,6 +45,15 @@ npm run test
 ```
 
 Configuration is documented in `.env.example`. No demo content is created unless `RCS_SEED_DEMO=true` is set.
+
+### Seeded accounts
+
+- **Admin** — one account from `RCS_ADMIN_EMAIL` / `RCS_ADMIN_PASSWORD`; when the password is unset, a fresh 16-character credential is generated and printed once at boot.
+- **Founders** — optional Admin accounts from `RCS_FOUNDERS` (comma-separated `Name:email` pairs). Each founder receives a generated 16-character credential printed once at boot; change it after the first login. Accounts that already exist are never modified.
+
+### New to this codebase?
+
+Read in this order: [docs/BRIEF.md](docs/BRIEF.md) for what RCS is and who uses it, [STRUCTURE.md](STRUCTURE.md) for the repository map, then [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the web app, API and shared package fit together. The API's domain rules (roles, ticket state machine, chat protocol) all live in `packages/shared/src/index.ts` — start there when you touch business logic.
 
 ## Documentation
 

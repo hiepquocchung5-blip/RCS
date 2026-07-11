@@ -51,6 +51,39 @@ async function seedAdmin(): Promise<void> {
   }
 }
 
+/**
+ * Seed founder Admin accounts from RCS_FOUNDERS ("Name:email" pairs,
+ * comma-separated). Each founder gets a generated 16-char credential that is
+ * printed once at boot; existing accounts are never touched.
+ */
+async function seedFounders(): Promise<void> {
+  const raw = process.env.RCS_FOUNDERS;
+  if (raw === undefined || raw.trim().length === 0) {
+    return;
+  }
+  for (const entry of raw.split(",")) {
+    const separator = entry.indexOf(":");
+    if (separator === -1) {
+      console.warn(`[rcs-api] RCS_FOUNDERS entry "${entry.trim()}" is not "Name:email"; skipped`);
+      continue;
+    }
+    const name = entry.slice(0, separator).trim();
+    const email = entry.slice(separator + 1).trim();
+    if (name.length === 0 || email.length === 0) {
+      console.warn(`[rcs-api] RCS_FOUNDERS entry "${entry.trim()}" is missing a name or email; skipped`);
+      continue;
+    }
+    if ((await store.findUserByEmail(email)) !== undefined) {
+      continue;
+    }
+    const password = generatePassword();
+    await store.createUser({ email, name, role: "admin", skillLevel: "senior", password });
+    await store.log("api", "founder_seeded", `Founder admin account provisioned for ${name} (${email})`);
+    console.log(`[rcs-api] Founder admin: ${name} <${email}>`);
+    console.log(`[rcs-api] ${email} password (generated this boot): ${password}`);
+  }
+}
+
 /** Optional demo data — only seeded when RCS_SEED_DEMO=true (never dummy data by default). */
 async function seedDemoTickets(): Promise<void> {
   const projects = await store.listProjects();
@@ -99,6 +132,7 @@ async function seedDemoTickets(): Promise<void> {
 }
 
 await seedAdmin();
+await seedFounders();
 if (process.env.RCS_SEED_DEMO === "true") {
   await seedDemoTickets();
   await store.log("api", "demo_seeded", "Demo tickets seeded (RCS_SEED_DEMO=true)");

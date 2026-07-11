@@ -56,6 +56,9 @@ RCS_JWT_SECRET=<openssl-rand-hex-32>
 RCS_GITHUB_WEBHOOK_SECRET=<openssl-rand-hex-32>
 RCS_ADMIN_EMAIL=<admin-email>
 RCS_ADMIN_PASSWORD=<exactly-16-characters>
+# Founder Admin accounts — each gets a generated 16-char credential printed
+# once in the API log at boot; deliver it privately and change it after first login.
+RCS_FOUNDERS=Filip:filip@risecorestudio.com,Shayy:shayy@risecorestudio.com,Pai Htoo Khant:paihtookhant@risecorestudio.com
 REDIS_URL=redis://127.0.0.1:6379
 DATABASE_URL=postgres://rcs_app:<password>@127.0.0.1:5432/rcs_production
 ```

@@ -22,7 +22,7 @@ const HISTORY = [
   {
     year: "2021",
     title: "The Genesis",
-    description: "RiseCoreStudio was founded by a small collective of senior engineers who believed client delivery could be predictable, structured, and free of scope creep.",
+    description: "RiseCoreStudio was founded by Filip, Shayy and Pai Htoo Khant — three engineers who believed client delivery could be predictable, structured, and free of scope creep.",
   },
   {
     year: "2023",
@@ -65,6 +65,9 @@ export default function AboutPage() {
           </h1>
           <p className="mt-6 text-base leading-relaxed text-rise-muted sm:text-lg">
             RiseCoreStudio (RCS) is a high-performance software agency. We combine robust platform architecture with an open-source development engine to ship digital products that withstand scale.
+          </p>
+          <p className="mt-4 text-base leading-relaxed text-rise-muted sm:text-lg">
+            Our mission: recruit and train young people in the technology field and guide them toward a high level of innovation — every squad pairs new talent with senior mentors on real client work.
           </p>
         </header>
 
