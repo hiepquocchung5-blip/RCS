@@ -61,6 +61,7 @@ Read in this order: [docs/BRIEF.md](docs/BRIEF.md) for what RCS is and who uses 
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — system boundaries, flows and decisions
 - [docs/INFRASTRUCTURE.md](docs/INFRASTRUCTURE.md) — deployment topology, security and scaling
 - [docs/PRODUCTION-READINESS.md](docs/PRODUCTION-READINESS.md) — implemented controls and launch gaps
+- [docs/OPERATIONS.md](docs/OPERATIONS.md) — every live URL, access rules and production health checks
 - [STRUCTURE.md](STRUCTURE.md) — concise repository map
 - [AGENT.md](AGENT.md) — deterministic automation rules
 - [PROTOTYPE.md](PROTOTYPE.md) — interface and product language standards
