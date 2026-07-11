@@ -4,6 +4,8 @@
 
 **RiseCoreStudio (RCS)** is an agency delivery platform that connects client acquisition, project planning, team formation and accountable software delivery.
 
+Founded by **Filip**, **Shayy** and **Pai Htoo Khant**, RCS carries a training mission: recruit young people into the technology field and guide them toward a high level of innovation through mentored work on real projects.
+
 ## Problem
 
 Small and growing software agencies often manage enquiries, staffing, delivery boards and team communication across disconnected tools. Clients lack a clear view of how work begins, while delivery leads spend time rebuilding context and manually matching people to projects.
@@ -64,14 +66,14 @@ Need focused access to assigned projects, tickets and relevant communication.
 
 ## Current scope
 
-The repository implements the public request and showcase experience, role-based authentication, developer onboarding, project and staffing workflows, delivery tickets, activity history and project-authorized chat contracts.
+The repository implements the public request and showcase experience (with reactions, views and share links), role-based authentication with cross-subdomain sessions, developer onboarding, project and staffing workflows, delivery tickets, activity history and project-authorized real-time chat with durable history.
 
-Production launch remains gated by the work listed in `PRODUCTION-READINESS.md`, particularly durable persistence, credential hashing, validation, abuse controls and observability.
+Persistence (PostgreSQL), credential hashing, request validation on public routes, rate limiting and readiness endpoints are implemented; the remaining launch gaps are tracked in `PRODUCTION-READINESS.md`.
 
 ## Near-term priorities
 
-1. PostgreSQL repositories and migrations.
-2. Production-grade credential and one-time-token storage.
-3. Runtime request schemas and rate limits.
-4. Project detail pages with milestones, tickets and communication in context.
-5. Client request conversion into a project without duplicate entry.
+1. Password change for provisioned users (founders currently cannot rotate generated credentials).
+2. Public showcase detail pages (`/showcase/[id]`) with Open Graph previews for social and Telegram sharing.
+3. Developer project proposals: a registered developer submits an idea, admin/PM approval converts it into a project with the proposer on the team.
+4. Chat presence, unread counts and automatic reconnection.
+5. Telegram integration: outbound bot notifications, then login, then a mini-app showcase.

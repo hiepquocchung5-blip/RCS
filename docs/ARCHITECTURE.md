@@ -19,8 +19,8 @@ Client or team browser
                                       ┌───────────────────┴──────────────────┐
                                       │                                      │
                                 Entity store                           OTP store
-                           in-memory development                  Redis or development
-                           PostgreSQL target                      memory adapter
+                        PostgreSQL (DATABASE_URL)                 Redis (REDIS_URL) or
+                        or in-memory dev fallback                 in-memory dev fallback
 ```
 
 ## Application boundaries
@@ -38,9 +38,9 @@ Client or team browser
 3. An Admin approves the verified application.
 4. RCS generates a 16-character credential and exposes it through a one-time link.
 5. Login returns a 12-hour signed session token.
-6. The browser presents that token to protected REST routes and when joining chat.
+6. The browser stores the session in a cookie scoped to the apex domain (`NEXT_PUBLIC_RCS_COOKIE_DOMAIN`), so one login is valid across every subdomain, and presents the token to protected REST routes and when joining chat.
 
-The header deliberately exposes one public entry to authentication: **Dev Hub**. After login, the user is sent to `/projects` and internal navigation becomes available.
+The header deliberately exposes one public entry to authentication: **Dev Hub**. After login, the user is sent to `/projects` and internal navigation becomes available. Browsers that open the auth API host directly are redirected to the portal login page (`RCS_LOGIN_REDIRECT_URL`).
 
 ## Authorization model
 
@@ -50,15 +50,16 @@ The header deliberately exposes one public entry to authentication: **Dev Hub**.
 
 Project chat is membership-aware. Ticket movement is a forward-only state machine: `todo → in_progress → review → complete`.
 
-## Current persistence boundary
+## Persistence boundary
 
-The `Store` class is an in-memory development implementation. Its method boundary reduces route coupling, but it is not durable or suitable for horizontal scaling. A production PostgreSQL repository must replace it before real client data is accepted. `DATABASE_URL` currently describes the intended deployment configuration; it does not yet activate a SQL adapter.
+The `Store` class serves two modes behind one method boundary: with `DATABASE_URL` set it persists every entity — users, applications, projects, tickets, orders, chat history and the activity log — in PostgreSQL; without it, it falls back to an in-memory development adapter with identical behavior. Production always runs with `DATABASE_URL` set.
 
-The initial relational schema lives in `apps/api/migrations/001_initial.sql`; repository contracts live in `apps/api/src/repositories/contracts.ts`. Run `npm run db:migrate -w apps/api` with `DATABASE_URL` set to apply the schema. Runtime repository implementations remain the next persistence task.
+The relational schema lives in `apps/api/migrations/` (`001_initial.sql`, `002_add_project_links_and_reactions.sql`, `003_chat_messages.sql`); repository contracts live in `apps/api/src/repositories/contracts.ts`. Run `npm run db:migrate -w apps/api` with `DATABASE_URL` set to apply pending migrations — the runner records applied names in `schema_migrations` and is safe to re-run.
 
 ## Architecture decisions
 
 - Development tools and code execution remain outside RCS.
-- Project chat stays in the API because authorization depends on RCS membership.
+- Project chat stays in the API because authorization depends on RCS membership; messages persist durably, the last 50 replay on join, and each socket is limited to 5 posts per 10 seconds.
 - Automated transitions are deterministic and recorded in the activity history.
 - Public showcase responses use an explicit client-safe projection.
+- CORS allows exact configured origins plus HTTPS subdomains of one trusted apex domain — never a plain suffix match, which lookalike domains could pass.

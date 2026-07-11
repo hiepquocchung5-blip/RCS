@@ -23,8 +23,8 @@ Our mission is to recruit and train young people in the technology field and gui
 | --- | --- |
 | Web | Next.js App Router, React, TypeScript, Tailwind CSS |
 | API | Node.js, Express, TypeScript |
-| Real time | WebSockets for authenticated project chat |
-| Storage | PostgreSQL target with an in-memory development adapter |
+| Real time | WebSockets for authenticated project chat with durable history |
+| Storage | PostgreSQL (in-memory development fallback when `DATABASE_URL` is unset) |
 | OTP | Redis in production with an in-memory development fallback |
 
 ## Getting started

@@ -6,6 +6,7 @@ RCS “agents” are background workers and webhook listeners, not generative AI
 
 - Issues and validates six-digit OTPs with a strict five-minute expiry.
 - Supports Admin approval and secure 16-character credential delivery.
+- Seeds the initial Admin and founder accounts at boot from environment configuration (`RCS_ADMIN_EMAIL`, `RCS_FOUNDERS`); generated credentials are printed once and never stored in plain text.
 - Records every meaningful onboarding event.
 
 ## Git sync agent

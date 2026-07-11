@@ -8,15 +8,21 @@ For system boundaries and deployment topology, see `docs/ARCHITECTURE.md` and `d
 RCS/
 ├── apps/
 │   ├── api/
-│   │   ├── src/index.ts          # API bootstrap, routes and chat server
-│   │   ├── src/store.ts          # entity storage boundaries
+│   │   ├── migrations/           # ordered SQL migrations (001…003)
+│   │   ├── src/index.ts          # API bootstrap, seeding, routes and chat server
+│   │   ├── src/store.ts          # entity storage (PostgreSQL or in-memory dev)
 │   │   ├── src/auth/             # OTP, password and session tokens
+│   │   ├── src/middleware/       # rate limiting
+│   │   ├── src/db/               # migration runner
+│   │   ├── src/repositories/     # SQL contracts and helpers
 │   │   └── src/routes/           # auth, admin, orders, projects, tickets, webhooks
 │   └── web/
 │       ├── app/                  # Next.js routes
 │       ├── components/           # shared interface components
 │       └── lib/                  # API and session clients
 ├── packages/shared/              # shared domain types and runtime contracts
+├── docs/                         # brief, architecture, infrastructure, operations
+├── ecosystem.config.cjs          # PM2 process definitions
 └── scripts/provision-vps.sh      # production server provisioning
 ```
 

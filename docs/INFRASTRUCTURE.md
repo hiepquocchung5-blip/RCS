@@ -1,18 +1,20 @@
 # Infrastructure
 
-## Recommended production topology
+## Production topology (as deployed)
 
 ```text
 Internet
    │
-CDN / reverse proxy / TLS
-   ├── / and static assets ──> Next.js service
-   └── /api and /chat ───────> Express API service
-                                  ├── PostgreSQL
-                                  └── Redis
+Nginx + TLS (Certbot)
+   ├── <apex> and www ─────────────> Next.js web (:3000), /api/ → API (:4000)
+   ├── developers.<apex> ──────────> Next.js web (:3000)
+   ├── api.<apex> ─────────────────> Express API (:4000)
+   └── auth.<apex> ────────────────> API /auth/* (browser GETs redirect to login)
+                                        ├── PostgreSQL (entities + chat history)
+                                        └── Redis (OTPs, rate limits, webhook dedup)
 ```
 
-Run the web and API as separate, non-root processes. Terminate TLS at a managed load balancer or Nginx and preserve WebSocket upgrade headers for `/chat`.
+Both services run as the non-root deploy user under PM2 (`ecosystem.config.cjs`). Nginx preserves WebSocket upgrade headers for `/chat`. See `docs/OPERATIONS.md` for the full URL map and health checks.
 
 ## Environments
 
@@ -24,7 +26,7 @@ Never reuse credentials, databases or JWT secrets between environments.
 
 ## Configuration
 
-Runtime configuration is environment-based and documented in `.env.example`. Production requires a strong `RCS_JWT_SECRET`. `NEXT_PUBLIC_RCS_API` is embedded into the web build and must point to the public API origin.
+Runtime configuration is environment-based and documented in `.env.example`. Production requires a strong `RCS_JWT_SECRET`, `RCS_TRUSTED_DOMAIN` (CORS subdomain allowance) and `RCS_LOGIN_REDIRECT_URL`. `NEXT_PUBLIC_RCS_API`, `NEXT_PUBLIC_RCS_AUTH` and `NEXT_PUBLIC_RCS_COOKIE_DOMAIN` are embedded into the web build and must be exported when running `npm run build`.
 
 Treat the following as secrets:
 
@@ -37,16 +39,16 @@ Treat the following as secrets:
 
 The API handles `SIGTERM` and `SIGINT`, stops accepting connections and closes its OTP store. The process should receive a termination grace period from the service manager before forced shutdown.
 
-The current `/health` endpoint proves that the HTTP process is alive. A future readiness endpoint should verify database and Redis access after those production adapters are implemented.
+`/health` proves the HTTP process is alive; `/ready` verifies PostgreSQL and reports the active OTP store (`{"ok":true,"storage":"postgres","otp":"redis"}` in production). Run `/ready` after every deploy.
 
-## Security baseline
+## Security baseline (implemented)
 
 - HTTPS and secure WebSockets only outside local development.
-- Restrictive CORS origins; never use a wildcard with authenticated endpoints.
-- Network access to PostgreSQL and Redis limited to application hosts.
-- Rate limiting on login, OTP and public request routes before public launch.
-- Password hashing, short-lived one-time delivery records and secret rotation before production use.
-- Validated GitHub webhook signatures before accepting automated transitions.
+- CORS allows exact configured origins plus HTTPS subdomains of `RCS_TRUSTED_DOMAIN`; never a wildcard, never a plain suffix match.
+- Network access to PostgreSQL and Redis limited to the application host.
+- Namespaced rate limits on login, application, OTP, magic-link and reaction routes; chat posts limited per socket.
+- Scrypt password hashing, hashed one-time magic links with encrypted credential delivery.
+- HMAC-validated GitHub webhook signatures with Redis-backed replay deduplication.
 
 ## Reliability baseline
 
@@ -58,4 +60,4 @@ The current `/health` endpoint proves that the HTTP process is alive. A future r
 
 ## Scaling notes
 
-The in-memory entity store and in-process chat fan-out constrain the current API to one instance. Horizontal scaling requires PostgreSQL persistence and a Redis-backed chat pub/sub layer. Do not add API replicas before both are in place.
+Entities persist in PostgreSQL, so the API process is stateless except for the in-process chat fan-out. Horizontal scaling to multiple API instances requires a Redis-backed chat pub/sub layer; do not add API replicas before it exists. On a single VPS, the in-process fan-out is correct and fast.
