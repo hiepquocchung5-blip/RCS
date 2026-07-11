@@ -31,13 +31,14 @@ export function ChatPanel({ channel, label }: { channel: string; label: string }
       } else if (parsed?.type === "chat:message") {
         setMessages((prev) => [...prev, parsed]);
       } else if (parsed?.type === "chat:error") {
-        setConnected(false);
+        // 429 is a flood warning — the socket stays connected.
+        if (parsed.code !== 429) setConnected(false);
         setMessages((prev) => [
           ...prev,
           {
             type: "chat:message",
             channel,
-            author: "System Error",
+            author: parsed.code === 429 ? "System" : "System Error",
             body: `${parsed.message} (Code: ${parsed.code ?? "unknown"})`,
             sentAt: new Date().toISOString(),
           },

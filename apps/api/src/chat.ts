@@ -4,6 +4,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import {
   parseChatClientMessage,
   type ChatChannel,
+  type ChatMessage,
   type ChatServerMessage,
 } from "@rcs/shared";
 import type { ApiConfig } from "./config.js";
@@ -14,7 +15,13 @@ import { requireAuth, type AuthedRequest } from "./middleware.js";
 interface ChatSession {
   user: SessionClaims;
   channel: string;
+  /** Timestamps of recent posts, for per-socket flood protection. */
+  postTimes: number[];
 }
+
+const CHAT_HISTORY_LIMIT = 50;
+const CHAT_RATE_LIMIT = 5;
+const CHAT_RATE_WINDOW_MS = 10_000;
 
 /**
  * Real-time chat over WebSockets, authenticated via JWT on join. Rooms map
@@ -81,8 +88,12 @@ export function attachChat(server: Server, store: Store, jwtSecret: string): voi
           socket.close(4403, `you are not a member of ${msg.channel}`);
           return;
         }
-        sessions.set(socket, { user, channel: msg.channel });
+        sessions.set(socket, { user, channel: msg.channel, postTimes: [] });
         send(socket, { type: "chat:joined", channel: msg.channel, code: 101 });
+        // Replay recent history (oldest first) so a refresh keeps the conversation.
+        for (const entry of await store.listChatHistory(msg.channel, CHAT_HISTORY_LIMIT)) {
+          send(socket, entry);
+        }
         return;
       }
 
@@ -94,13 +105,25 @@ export function attachChat(server: Server, store: Store, jwtSecret: string): voi
       }
       const body = msg.body.trim();
       if (body.length === 0 || body.length > 2000) return;
-      const message: ChatServerMessage = {
+      const now = Date.now();
+      session.postTimes = session.postTimes.filter((t) => now - t < CHAT_RATE_WINDOW_MS);
+      if (session.postTimes.length >= CHAT_RATE_LIMIT) {
+        send(socket, {
+          type: "chat:error",
+          message: "you are sending messages too quickly; wait a few seconds",
+          code: 429,
+        });
+        return;
+      }
+      session.postTimes.push(now);
+      const message: ChatMessage = {
         type: "chat:message",
         channel: session.channel,
         author: session.user.email,
         body,
         sentAt: new Date().toISOString(),
       };
+      await store.saveChatMessage(message);
       for (const client of wss.clients) {
         if (
           client.readyState === WebSocket.OPEN &&

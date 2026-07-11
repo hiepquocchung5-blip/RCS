@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import {
   TICKET_NEXT_STATUS,
+  type ChatMessage,
   type ClientOrder,
   type DeveloperApplication,
   type Project,
@@ -48,6 +49,7 @@ export class Store {
   private readonly logs: SystemLogEntry[] = [];
   private readonly magicLinks = new Map<string, MagicLink>();
   private readonly mockReactions = new Map<string, Map<string, Set<string>>>();
+  private readonly chatMessages = new Map<string, ChatMessage[]>();
   private ticketCounter = 100;
   private readonly pool?: Pool;
 
@@ -827,6 +829,48 @@ export class Store {
     const updated: ClientOrder = { ...order, status: "converted" };
     this.orders.set(id, updated);
     return updated;
+  }
+
+  // -- chat history -------------------------------------------------------------
+
+  /** In-memory fallback keeps at most this many messages per channel. */
+  private static readonly CHAT_MEMORY_CAP = 200;
+
+  async saveChatMessage(message: ChatMessage): Promise<void> {
+    if (this.pool) {
+      await this.pool.query(
+        `INSERT INTO chat_messages (id, channel, author, body, sent_at) VALUES ($1, $2, $3, $4, $5)`,
+        [randomUUID(), message.channel, message.author, message.body, message.sentAt]
+      );
+      return;
+    }
+    const history = this.chatMessages.get(message.channel) ?? [];
+    history.push(message);
+    if (history.length > Store.CHAT_MEMORY_CAP) {
+      history.splice(0, history.length - Store.CHAT_MEMORY_CAP);
+    }
+    this.chatMessages.set(message.channel, history);
+  }
+
+  /** The most recent messages of a channel, oldest first. */
+  async listChatHistory(channel: string, limit = 50): Promise<readonly ChatMessage[]> {
+    if (this.pool) {
+      const res = await this.pool.query(
+        `SELECT channel, author, body, sent_at as "sentAt" FROM chat_messages WHERE channel = $1 ORDER BY sent_at DESC LIMIT $2`,
+        [channel, limit]
+      );
+      return res.rows
+        .map((r) => ({
+          type: "chat:message" as const,
+          channel: r.channel,
+          author: r.author,
+          body: r.body,
+          sentAt: new Date(r.sentAt).toISOString(),
+        }))
+        .reverse();
+    }
+    const history = this.chatMessages.get(channel) ?? [];
+    return history.slice(-limit);
   }
 
   // -- tickets ----------------------------------------------------------------
