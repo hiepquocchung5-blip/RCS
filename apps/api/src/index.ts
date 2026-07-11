@@ -13,6 +13,7 @@ import { projectRoutes } from "./routes/projects.js";
 import { orderRoutes } from "./routes/orders.js";
 import { webhookRoutes } from "./routes/webhooks.js";
 import { requireAuth, requireRole, errorHandler } from "./middleware.js";
+import { rateLimit } from "./middleware/rate-limit.js";
 import { verifyToken } from "./auth/tokens.js";
 import { attachChat, chatRoutes } from "./chat.js";
 import { metrics, requestContext } from "./observability.js";
@@ -103,14 +104,33 @@ if (process.env.RCS_SEED_DEMO === "true") {
   await store.log("api", "demo_seeded", "Demo tickets seeded (RCS_SEED_DEMO=true)");
 }
 
+/**
+ * An origin is allowed when it exactly matches RCS_WEB_ORIGIN, or when it is
+ * an HTTPS origin whose hostname is RCS_TRUSTED_DOMAIN or one of its
+ * subdomains. A plain suffix check is not enough: "evil-risecorestudio.com"
+ * must never pass.
+ */
+function isAllowedOrigin(origin: string): boolean {
+  if (config.webOrigins.includes(origin)) return true;
+  if (config.trustedDomain === null) return false;
+  let url: URL;
+  try {
+    url = new URL(origin);
+  } catch {
+    return false;
+  }
+  return (
+    url.protocol === "https:" &&
+    (url.hostname === config.trustedDomain ||
+      url.hostname.endsWith(`.${config.trustedDomain}`))
+  );
+}
+
 const app = express();
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);
-    if (config.webOrigins.includes(origin) || origin.endsWith("risecorestudio.com")) {
-      return callback(null, true);
-    }
-    callback(null, false);
+    callback(null, isAllowedOrigin(origin));
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
@@ -168,8 +188,15 @@ app.get("/showcase", async (req, res) => {
   res.json({ projects: await store.listShowcase(sessionOrGuestId || null) });
 });
 
-app.post("/showcase/:id/react", async (req, res) => {
+// Reactions are guest-writable, so cap them per IP; counts stay approximate.
+const reactionLimit = rateLimit({ name: "react", windowMs: 5 * 60 * 1000, limit: 30, redisClient });
+
+app.post("/showcase/:id/react", reactionLimit, async (req, res) => {
   const projectId = req.params.id;
+  if (projectId === undefined) {
+    res.status(400).json({ error: "project id required" });
+    return;
+  }
   const { reactionType } = req.body;
   if (!reactionType || !["star", "like", "love", "fire"].includes(reactionType)) {
     res.status(400).json({ error: "invalid reaction type" });

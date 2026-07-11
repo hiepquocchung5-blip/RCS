@@ -4,6 +4,8 @@ import { Redis } from "ioredis";
 interface WindowEntry { count: number; resetAt: number }
 
 export function rateLimit(options: {
+  /** Namespace for this limiter; keeps counters of different routes separate. */
+  name: string;
   windowMs: number;
   limit: number;
   key?: (req: Request) => string;
@@ -14,7 +16,7 @@ export function rateLimit(options: {
 
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const now = Date.now();
-    const rawKey = options.key?.(req) ?? req.ip ?? "unknown";
+    const rawKey = `${options.name}:${options.key?.(req) ?? req.ip ?? "unknown"}`;
     
     let count: number;
     let resetAt: number;

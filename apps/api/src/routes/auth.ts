@@ -19,9 +19,11 @@ export function authRoutes(
   redisClient?: Redis | null,
 ): Router {
   const router = Router();
-  const applicationLimit = rateLimit({ windowMs: 60 * 60 * 1000, limit: 10, redisClient });
-  const loginLimit = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, redisClient });
+  const applicationLimit = rateLimit({ name: "apply", windowMs: 60 * 60 * 1000, limit: 10, redisClient });
+  const loginLimit = rateLimit({ name: "login", windowMs: 15 * 60 * 1000, limit: 10, redisClient });
+  const magicLimit = rateLimit({ name: "magic", windowMs: 15 * 60 * 1000, limit: 10, redisClient });
   const otpLimit = rateLimit({
+    name: "otp",
     windowMs: 5 * 60 * 1000,
     limit: 5,
     key: (req) => `${req.ip ?? "unknown"}:${String((req.body as Record<string, unknown>)["applicationId"] ?? "missing")}`,
@@ -93,7 +95,7 @@ export function authRoutes(
   });
 
   /** Step 5 — one-time magic link reveals the generated credential. */
-  router.get("/magic/:token", async (req: Request, res: Response) => {
+  router.get("/magic/:token", magicLimit, async (req: Request, res: Response) => {
     const token = req.params.token;
     if (token === undefined) {
       res.status(400).json({ error: "token required" });

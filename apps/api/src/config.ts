@@ -14,6 +14,11 @@ export interface ApiConfig {
   githubWebhookSecret: string | null;
   /** Browser origins allowed by CORS (comma-separated in RCS_WEB_ORIGIN). */
   webOrigins: string[];
+  /**
+   * Apex domain whose HTTPS subdomains are also allowed by CORS
+   * (RCS_TRUSTED_DOMAIN, e.g. "risecorestudio.com"); null = exact origins only.
+   */
+  trustedDomain: string | null;
   isProduction: boolean;
 }
 
@@ -36,6 +41,7 @@ export function loadConfig(): ApiConfig {
       .split(",")
       .map((origin) => origin.trim())
       .filter((origin) => origin.length > 0),
+    trustedDomain: process.env.RCS_TRUSTED_DOMAIN ?? null,
     isProduction,
   };
 }
