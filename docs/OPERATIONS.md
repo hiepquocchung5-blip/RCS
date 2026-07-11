@@ -44,7 +44,9 @@ team can operate the platform without asking.
 | `POST /webhooks/github` | Merged PR advances the referenced `RCS-<n>` ticket | GitHub (HMAC-signed) |
 
 The auth subdomain `https://auth.risecorestudio.com/` serves the same `/auth/*`
-routes (nginx maps it to the API's `/auth/` prefix).
+routes (nginx maps it to the API's `/auth/` prefix). Opening it in a browser
+(`GET /` or `/login`) redirects to the portal login page
+(`RCS_LOGIN_REDIRECT_URL`), so visitors never see raw API JSON.
 
 ## Production health check (run after every deploy)
 
