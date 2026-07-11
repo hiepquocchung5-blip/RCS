@@ -21,26 +21,25 @@ This document distinguishes implemented behavior from required production work.
 - Request IDs, structured HTTP logs, readiness and metrics endpoints.
 - HTTP-level project and ticket isolation tests.
 - Global activity history restricted to Admin and PM roles.
-- Initial PostgreSQL schema and repository contracts.
+- PostgreSQL persistence for all entities, activated at runtime via `DATABASE_URL`.
+- Redis-backed rate limiting and webhook delivery deduplication (in-memory dev fallback).
+- Strict CORS origin validation: exact origins plus HTTPS subdomains of `RCS_TRUSTED_DOMAIN`.
+- Rate limits on login, application, OTP, magic-link and showcase-reaction endpoints.
+- Durable chat history in PostgreSQL with per-socket flood protection.
+- Cross-subdomain cookie sessions with a build-time configurable domain.
 
 ## Required before real client data
 
-- Implement the PostgreSQL repository contracts and activate them at runtime; the schema and migration runner now exist, but entities still use the in-memory adapter.
 - Extend Zod validation to every project, ticket and administration mutation.
-- Move rate-limit counters and webhook delivery deduplication to Redis for multi-instance operation.
 - Add CSRF-aware cookie sessions or document and harden the bearer-token model.
-- Move browser tokens away from long-lived `localStorage` if the authentication model permits.
-- Add readiness checks, structured logging, metrics and request correlation IDs.
-- Add durable chat history if project communication must be retained.
+- Add backup/restore testing for PostgreSQL.
 - Complete accessibility, browser and end-to-end authorization testing.
 
 ## Delivery sequence
 
-1. Complete and activate PostgreSQL repository implementations.
-2. Move distributed rate-limit and webhook replay state to Redis.
-3. Complete validation coverage and cookie-session hardening.
-4. Add observability export, backup/restore tests and durable chat history.
-5. Complete end-to-end security and permission testing.
-6. Run a staging soak test followed by a controlled production launch.
+1. Complete validation coverage and cookie-session hardening.
+2. Add observability export and backup/restore tests.
+3. Complete end-to-end security and permission testing.
+4. Run a staging soak test followed by a controlled production launch.
 
 No document should claim production readiness until every required item is implemented and verified.

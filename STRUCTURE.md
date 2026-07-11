@@ -26,4 +26,4 @@ The browser communicates with the API over authenticated REST endpoints. Project
 
 Public routes expose the showcase and client request flow. Internal routes require a session and enforce `admin`, `pm`, `devops`, `frontend` or `backend` permissions. Ticket transitions always follow `todo → in_progress → review → complete`.
 
-OTPs use Redis when `REDIS_URL` is configured and otherwise use the development memory adapter with the same five-minute expiry. Entity data currently uses the `Store` abstraction, ready for a PostgreSQL adapter.
+OTPs use Redis when `REDIS_URL` is configured and otherwise use the development memory adapter with the same five-minute expiry. Entity data (including chat history) persists in PostgreSQL when `DATABASE_URL` is configured; without it the `Store` falls back to the in-memory development adapter.

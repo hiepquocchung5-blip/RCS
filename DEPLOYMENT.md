@@ -40,7 +40,7 @@ SQL
 sudo -u RCS_user env DATABASE_URL='postgres://rcs_app:<password>@127.0.0.1:5432/rcs_production' npm run db:migrate -w apps/api
 ```
 
-The schema exists, but the API entity repository is still in-memory. Do not consider this durable production until the PostgreSQL repository implementation is activated.
+When `DATABASE_URL` is set, the API persists all entities (users, projects, tickets, orders, chat history and the activity log) in PostgreSQL. Without it, the API falls back to the in-memory development adapter and data is lost on restart — never run production without `DATABASE_URL`.
 
 ## Environment
 
@@ -51,6 +51,7 @@ NODE_ENV=production
 PORT=4000
 RCS_API_BASE_URL=https://risecorestudio.com/api
 RCS_WEB_ORIGIN=https://risecorestudio.com,https://www.risecorestudio.com
+RCS_TRUSTED_DOMAIN=risecorestudio.com
 RCS_JWT_SECRET=<openssl-rand-hex-32>
 RCS_GITHUB_WEBHOOK_SECRET=<openssl-rand-hex-32>
 RCS_ADMIN_EMAIL=<admin-email>
@@ -60,12 +61,16 @@ DATABASE_URL=postgres://rcs_app:<password>@127.0.0.1:5432/rcs_production
 ```
 
 ```bash
-sudo -u RCS_user env NEXT_PUBLIC_RCS_API=https://risecorestudio.com/api npm run build
-sudo -u RCS_user pm2 start "node apps/api/dist/index.js" --name rcs-api
-sudo -u RCS_user pm2 start "npm run start -w apps/web" --name rcs-web
+sudo -u RCS_user env \
+  NEXT_PUBLIC_RCS_API=https://risecorestudio.com/api \
+  NEXT_PUBLIC_RCS_COOKIE_DOMAIN=risecorestudio.com \
+  npm run build
+sudo -u RCS_user pm2 start ecosystem.config.cjs
 sudo -u RCS_user pm2 save
 pm2 startup systemd -u RCS_user --hp /home/RCS_user
 ```
+
+Both processes are defined in `ecosystem.config.cjs`; do not start them with ad-hoc `pm2 start` commands.
 
 ## Nginx
 
@@ -109,8 +114,18 @@ certbot --nginx -d risecorestudio.com -d www.risecorestudio.com
 cd /opt/rcs
 sudo -u RCS_user git pull --ff-only origin main
 npm ci
-sudo -u RCS_user env NEXT_PUBLIC_RCS_API=https://risecorestudio.com/api npm run build
+npm run typecheck && npm run test
+sudo -u RCS_user env \
+  NEXT_PUBLIC_RCS_API=https://risecorestudio.com/api \
+  NEXT_PUBLIC_RCS_COOKIE_DOMAIN=risecorestudio.com \
+  npm run build
 sudo -u RCS_user pm2 restart rcs-api rcs-web --update-env
 ```
 
+Never restart production from a build whose typecheck or tests failed.
+
 Record `git rev-parse HEAD` before every update. Roll back by checking out that revision, rebuilding and restarting both services.
+
+## Staging on the same VPS (recommended)
+
+Verify changes on the real server before the public sees them: keep a second checkout at `/opt/rcs-staging` with its own `.env` (ports `4001`/`3001`, a separate `rcs_staging` database) and a `staging.risecorestudio.com` Nginx server block pointing at those ports. Deploy there first, click through the change, then promote the same commit to `/opt/rcs`. Staging costs nothing extra and keeps mistakes away from the live domain.
