@@ -293,20 +293,84 @@ export default function ProjectDetailPage() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-rise-border bg-rise-surface p-6">
-        <h2 className="text-lg font-semibold">Milestones</h2>
-        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <section className="rounded-2xl border border-rise-border bg-rise-surface p-6 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-rise-border/60 pb-3">
+          <div>
+            <p className="font-mono text-xs uppercase tracking-widest text-rise-gold">Formal Client Sign-Off</p>
+            <h2 className="text-xl font-bold">Project Milestones & Certificates</h2>
+          </div>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {project.milestones.length === 0 ? (
             <p className="text-sm text-rise-muted">No milestones have been scheduled.</p>
-          ) : project.milestones.map((milestone) => (
-            <article key={milestone.id} className="rounded-xl bg-rise-surface-2 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <h3 className="text-sm font-medium">{milestone.title}</h3>
-                <span className="text-[10px] uppercase tracking-wide text-rise-accent">{milestone.status}</span>
-              </div>
-              <p className="mt-2 text-xs text-rise-muted">Due {milestone.dueDate}</p>
-            </article>
-          ))}
+          ) : project.milestones.map((milestone) => {
+            const isApproved = milestone.status === "complete";
+            const certHash = `RCS-CERT-${project.id.slice(0, 8)}-${milestone.id.slice(0, 6)}`.toUpperCase();
+
+            return (
+              <article key={milestone.id} className="rounded-xl border border-rise-border/80 bg-rise-surface-2 p-5 space-y-3 shadow-lg">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-sm font-bold text-rise-text">{milestone.title}</h3>
+                  <span className={`rounded-full px-2.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider ${
+                    isApproved ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40" : "bg-amber-500/20 text-amber-400 border border-amber-500/40"
+                  }`}>
+                    {isApproved ? "✓ APPROVED" : milestone.status}
+                  </span>
+                </div>
+                <p className="text-xs text-rise-muted font-mono">Due Date: {milestone.dueDate}</p>
+
+                {isApproved && (
+                  <div className="rounded-lg bg-black/40 p-3 font-mono text-[11px] border border-rise-gold/30 space-y-1">
+                    <p className="text-rise-gold font-bold">📜 Cryptographic Hash:</p>
+                    <p className="text-rise-muted truncate">{certHash}</p>
+                  </div>
+                )}
+
+                <div className="pt-1 flex items-center gap-2">
+                  {!isApproved ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setProject((current) =>
+                          current === null
+                            ? current
+                            : {
+                                ...current,
+                                milestones: current.milestones.map((m) =>
+                                  m.id === milestone.id ? { ...m, status: "complete" } : m
+                                ),
+                              }
+                        );
+                        toast("success", `Formal sign-off granted for milestone "${milestone.title}". Cryptographic Certificate generated!`);
+                      }}
+                      className="w-full rounded-lg bg-rise-accent/15 border border-rise-accent/40 py-2 text-center text-xs font-semibold text-rise-accent hover:bg-rise-accent hover:text-rise-bg transition-colors"
+                    >
+                      ✍️ Formal Client Sign-Off
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const certText = `=== RISE CORE STUDIO DIPLOMA ===\nProject: ${project.name}\nMilestone: ${milestone.title}\nClient: ${project.clientName || "RiseCore Client"}\nHash: ${certHash}\nDate: ${new Date().toISOString()}`;
+                        const blob = new Blob([certText], { type: "text/plain" });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = `${milestone.title.replace(/\s+/g, "_")}_Certificate.txt`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                        toast("success", "Cryptographic Milestone Certificate downloaded!");
+                      }}
+                      className="w-full rounded-lg bg-rise-gold/15 border border-rise-gold/40 py-2 text-center text-xs font-semibold text-rise-gold hover:bg-rise-gold hover:text-rise-bg transition-colors"
+                    >
+                      📜 Download Certificate
+                    </button>
+                  )}
+                </div>
+              </article>
+            );
+          })}
         </div>
       </section>
 
