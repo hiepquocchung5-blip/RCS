@@ -813,10 +813,17 @@ export class Store {
       createdAt: new Date().toISOString(),
     };
     if (this.pool) {
-      await this.pool.query(
-        `INSERT INTO client_orders (id, name, email, company, telegram_username, project_type, brief, status, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-        [order.id, order.name, order.email, order.company, order.telegramUsername || null, order.projectType, order.brief, order.status, order.createdAt]
-      );
+      try {
+        await this.pool.query(
+          `INSERT INTO client_orders (id, name, email, company, telegram_username, project_type, brief, status, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+          [order.id, order.name, order.email, order.company, order.telegramUsername || null, order.projectType, order.brief, order.status, order.createdAt]
+        );
+      } catch {
+        await this.pool.query(
+          `INSERT INTO client_orders (id, name, email, company, project_type, brief, status, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [order.id, order.name, order.email, order.company, order.projectType, order.brief, order.status, order.createdAt]
+        );
+      }
     } else {
       this.orders.set(order.id, order);
     }

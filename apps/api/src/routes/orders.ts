@@ -14,37 +14,41 @@ export function orderRoutes(config: ApiConfig, store: Store): Router {
   const notifier = createTelegramNotifier(config);
 
   router.post("/", async (req: Request, res: Response) => {
-    const parsed = orderSchema.safeParse(req.body);
-    if (!parsed.success) {
-      res.status(400).json(validationError(parsed.error));
-      return;
+    try {
+      const parsed = orderSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json(validationError(parsed.error));
+        return;
+      }
+      const { name, email, company, telegramUsername, projectType, brief } = parsed.data;
+      const order = await store.createOrder({
+        name,
+        email,
+        company,
+        telegramUsername,
+        projectType,
+        brief,
+      });
+      await store.log(
+        "api",
+        "order_received",
+        `Client order from ${order.email} (${order.projectType}) awaiting admin review`,
+      );
+
+      // Send Telegram Notification asynchronously without blocking client HTTP response
+      const tgMsg = `<b>🚀 New Project Request Received</b>\n\n` +
+        `• <b>Client:</b> ${order.name}\n` +
+        `• <b>Email:</b> ${order.email}\n` +
+        (order.telegramUsername ? `• <b>Telegram:</b> ${order.telegramUsername}\n` : "") +
+        (order.company ? `• <b>Company:</b> ${order.company}\n` : "") +
+        `• <b>Type:</b> ${order.projectType}\n` +
+        `• <b>Brief:</b> ${order.brief.slice(0, 150)}...`;
+      void notifier.sendMessage(tgMsg).catch(() => {});
+
+      res.status(201).json({ orderId: order.id });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to process order request" });
     }
-    const { name, email, company, telegramUsername, projectType, brief } = parsed.data;
-    const order = await store.createOrder({
-      name,
-      email,
-      company,
-      telegramUsername,
-      projectType,
-      brief,
-    });
-    await store.log(
-      "api",
-      "order_received",
-      `Client order from ${order.email} (${order.projectType}) awaiting admin review`,
-    );
-
-    // Send Telegram Notification asynchronously without blocking client HTTP response
-    const tgMsg = `<b>🚀 New Project Request Received</b>\n\n` +
-      `• <b>Client:</b> ${order.name}\n` +
-      `• <b>Email:</b> ${order.email}\n` +
-      (order.telegramUsername ? `• <b>Telegram:</b> ${order.telegramUsername}\n` : "") +
-      (order.company ? `• <b>Company:</b> ${order.company}\n` : "") +
-      `• <b>Type:</b> ${order.projectType}\n` +
-      `• <b>Brief:</b> ${order.brief.slice(0, 150)}...`;
-    void notifier.sendMessage(tgMsg).catch(() => {});
-
-    res.status(201).json({ orderId: order.id });
   });
 
   router.get(
