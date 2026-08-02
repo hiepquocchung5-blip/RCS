@@ -36,10 +36,23 @@ jobs:
     name: Deploy to Production
     needs: test-and-typecheck
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && secrets.VPS_SSH_HOST != ''
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
 
     steps:
+      - name: Check SSH Secrets Availability
+        id: check_secrets
+        env:
+          SSH_HOST: ${{ secrets.VPS_SSH_HOST }}
+        run: |
+          if [ -z "$SSH_HOST" ]; then
+            echo "has_ssh=false" >> $GITHUB_OUTPUT
+            echo "::notice ::VPS_SSH_HOST secret is not set. Add VPS_SSH_HOST, VPS_SSH_USER, and VPS_SSH_KEY in Repository Settings -> Secrets to enable automated remote deployment."
+          else
+            echo "has_ssh=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Execute Remote SSH Commands to Deploy
+        if: steps.check_secrets.outputs.has_ssh == 'true'
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VPS_SSH_HOST }}
