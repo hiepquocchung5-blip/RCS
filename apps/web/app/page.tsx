@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getAuthUrl } from "@/lib/api";
+import { RetroLoader } from "@/components/RetroLoader";
 
 // Keep the public entry shell synchronized with the currently deployed asset
 // manifest. This avoids a cached HTML document referencing retired JS/CSS
@@ -63,7 +64,13 @@ export default function HomePage() {
             Explore our work
           </Link>
         </div>
-        <div className="hairline fade-up fade-up-4 mt-20 w-full" />
+
+        {/* 3D WebGL Liquid Chevron & Retro TV Loader */}
+        <div className="fade-up fade-up-4 mt-12 w-full max-w-2xl">
+          <RetroLoader />
+        </div>
+
+        <div className="hairline fade-up fade-up-4 mt-16 w-full" />
       </section>
 
       <section className="mx-auto max-w-6xl px-6 pb-24">
