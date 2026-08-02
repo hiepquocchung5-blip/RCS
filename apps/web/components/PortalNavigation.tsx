@@ -59,22 +59,51 @@ export function PortalNavigation() {
   }
 
   return (
-    <nav aria-label={session === null ? "Public navigation" : "Dev Hub navigation"} className="flex min-w-0 items-center gap-1 overflow-x-auto text-sm">
-      {links.map((link) => (
-        <a
-          key={link.href}
-          href={resolveHref(link)}
-          aria-current={pathname === link.href ? "page" : undefined}
-          className={`whitespace-nowrap rounded-full px-3 py-1.5 transition-colors ${
-            pathname === link.href
-              ? "bg-rise-surface-2 text-rise-accent"
-              : "text-rise-muted hover:text-rise-accent"
-          }`}
+    <>
+      {/* Desktop Top Inline Navigation (sm and up) */}
+      <nav aria-label={session === null ? "Public navigation" : "Dev Hub navigation"} className="hidden sm:flex min-w-0 items-center gap-1.5 overflow-x-auto text-sm">
+        {links.map((link) => (
+          <a
+            key={link.href}
+            href={resolveHref(link)}
+            aria-current={pathname === link.href ? "page" : undefined}
+            className={`whitespace-nowrap rounded-full px-3.5 py-1.5 font-medium transition-all ${
+              pathname === link.href
+                ? "bg-rise-accent/15 text-rise-accent border border-rise-accent/30 shadow-sm"
+                : "text-rise-muted hover:text-rise-text hover:bg-rise-surface-2/60"
+            }`}
+          >
+            {link.label}
+          </a>
+        ))}
+      </nav>
+
+      {/* Floating Mobile Bottom Glass Dock (under sm screen width) */}
+      <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 sm:hidden w-[92%] max-w-md">
+        <nav
+          aria-label="Mobile Bottom Navigation"
+          className="flex items-center justify-around gap-1 rounded-full border border-rise-border/80 bg-rise-surface/85 p-1.5 backdrop-blur-xl shadow-2xl ring-1 ring-white/10"
         >
-          {link.label}
-        </a>
-      ))}
-    </nav>
+          {links.map((link) => {
+            const active = pathname === link.href;
+            return (
+              <a
+                key={link.href}
+                href={resolveHref(link)}
+                aria-current={active ? "page" : undefined}
+                className={`flex flex-col items-center justify-center rounded-full px-3 py-1.5 text-xs font-semibold tracking-tight transition-all active:scale-95 ${
+                  active
+                    ? "bg-rise-accent text-rise-bg shadow-md font-bold"
+                    : "text-rise-muted hover:text-rise-text"
+                }`}
+              >
+                <span>{link.label}</span>
+              </a>
+            );
+          })}
+        </nav>
+      </div>
+    </>
   );
 }
 
