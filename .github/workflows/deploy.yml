@@ -36,7 +36,7 @@ jobs:
     name: Deploy to Production
     needs: test-and-typecheck
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push' && secrets.VPS_SSH_HOST != ''
 
     steps:
       - name: Execute Remote SSH Commands to Deploy
@@ -50,8 +50,9 @@ jobs:
             cd /opt/rcs
             git pull origin main
             
-            echo "==> Building and deploying Docker containers..."
-            docker compose up -d --build
+            echo "==> Installing dependencies and building..."
+            npm ci
+            NEXT_PUBLIC_RCS_API=https://risecorestudio.com/api NEXT_PUBLIC_RCS_COOKIE_DOMAIN=risecorestudio.com npm run build
             
-            echo "==> Pruning unused Docker resources..."
-            docker image prune -f
+            echo "==> Restarting PM2 services..."
+            pm2 restart rcs-api rcs-web --update-env
