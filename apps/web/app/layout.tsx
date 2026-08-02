@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
 import { ToastProvider } from "@/components/ToastProvider";
@@ -11,6 +11,9 @@ export const metadata: Metadata = {
   title: "RCS — RiseCoreStudio",
   description: "Agency delivery, project planning and team operations.",
   manifest: "/manifest.json",
+};
+
+export const viewport: Viewport = {
   themeColor: "#0c1322",
 };
 
