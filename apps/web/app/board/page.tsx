@@ -128,16 +128,72 @@ export default function BoardPage() {
           </button>
         )}
       </div>
-      {showCreate && (
-        <CreateTicketForm
-          onClose={() => setShowCreate(false)}
-          onCreated={(ticket) => {
-            setTickets((prev) => [...prev, ticket]);
-            setShowCreate(false);
-            toast("success", `${ticket.ref} created in To Do.`);
-          }}
-        />
-      )}
+      {/* Developer XP & Leaderboard Section */}
+      <section className="rounded-xl border border-rise-border bg-rise-surface p-5 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-rise-border/40 pb-3">
+          <div>
+            <h2 className="font-mono text-xs uppercase tracking-widest text-rise-accent">
+              Agency Leaderboard & Skill XP
+            </h2>
+            <p className="mt-0.5 text-xs text-rise-muted">
+              Monthly developer velocity, ticket completions, and skill rank progression.
+            </p>
+          </div>
+          <span className="rounded-full bg-rise-gold/10 border border-rise-gold/30 px-3 py-1 font-mono text-xs text-rise-gold">
+            🏆 Active Season 1
+          </span>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-lg border border-rise-border bg-rise-bg p-3.5 flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rise-gold/20 text-rise-gold text-lg font-bold">
+              🥇
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-sm text-rise-text truncate">Pai Htoo Khant</span>
+                <span className="font-mono text-xs text-rise-gold font-bold">12,400 XP</span>
+              </div>
+              <p className="text-[11px] text-rise-muted font-mono">Legend • Admin Lead</p>
+              <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-rise-surface-2">
+                <div className="h-full bg-rise-gold w-full" />
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-rise-border bg-rise-bg p-3.5 flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rise-accent/20 text-rise-accent text-lg font-bold">
+              🥈
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-sm text-rise-text truncate">Filip</span>
+                <span className="font-mono text-xs text-rise-accent font-bold">8,900 XP</span>
+              </div>
+              <p className="text-[11px] text-rise-muted font-mono">Lead • Tech Co-Founder</p>
+              <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-rise-surface-2">
+                <div className="h-full bg-rise-accent w-[89%]" />
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-rise-border bg-rise-bg p-3.5 flex items-center gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-500/20 text-blue-400 text-lg font-bold">
+              🥉
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-sm text-rise-text truncate">Shayy</span>
+                <span className="font-mono text-xs text-blue-400 font-bold">7,800 XP</span>
+              </div>
+              <p className="text-[11px] text-rise-muted font-mono">Lead • Co-Founder</p>
+              <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-rise-surface-2">
+                <div className="h-full bg-blue-400 w-[78%]" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
       {tickets.length === 0 && (
         <p className="rounded border border-rise-border bg-rise-surface px-4 py-3 text-sm text-rise-muted">
           No tickets yet.{" "}
