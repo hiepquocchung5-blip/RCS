@@ -187,6 +187,37 @@ export class Store {
     return user !== undefined && verifyPassword(password, user.passwordHash) ? user : undefined;
   }
 
+  async changePassword(userId: string, oldPassword: string, newPassword: string): Promise<boolean> {
+    let user: StoredUser | undefined;
+    if (this.pool) {
+      const res = await this.pool.query(`SELECT * FROM users WHERE id = $1`, [userId]);
+      if (res.rows.length > 0) {
+        const row = res.rows[0];
+        user = {
+          id: row.id,
+          email: row.email,
+          name: row.name,
+          role: row.role,
+          skillLevel: row.skill_level,
+          passwordHash: row.password_hash,
+          createdAt: new Date(row.created_at).toISOString(),
+        };
+      }
+    } else {
+      user = this.users.get(userId);
+    }
+    if (!user || !verifyPassword(oldPassword, user.passwordHash)) {
+      return false;
+    }
+    const newHash = hashPassword(newPassword);
+    if (this.pool) {
+      await this.pool.query(`UPDATE users SET password_hash = $1 WHERE id = $2`, [newHash, userId]);
+    } else {
+      this.users.set(userId, { ...user, passwordHash: newHash });
+    }
+    return true;
+  }
+
   async listUsers(): Promise<readonly UserProfile[]> {
     if (this.pool) {
       const res = await this.pool.query(

@@ -4,6 +4,7 @@ import { generateOtp, type OtpStore } from "../auth/otp.js";
 import { signSessionToken } from "../auth/tokens.js";
 import type { Store } from "../store.js";
 import { rateLimit } from "../middleware/rate-limit.js";
+import { requireAuth, type AuthedRequest } from "../middleware.js";
 import { applicationSchema, loginSchema, otpSchema, validationError } from "../schemas.js";
 import { Mailer } from "../mail.js";
 
@@ -161,9 +162,28 @@ export function authRoutes(
       email: user.email,
       role: user.role,
     });
-    await store.log("api", "login", `${user.email} logged in (${user.role})`);
     const { passwordHash: _passwordHash, ...profile } = user;
     res.json({ token, user: profile });
+  });
+
+  router.post("/change-password", requireAuth(config.jwtSecret), async (req: AuthedRequest, res: Response) => {
+    const session = req.session;
+    if (!session) {
+      res.status(401).json({ error: "unauthenticated" });
+      return;
+    }
+    const { oldPassword, newPassword } = req.body;
+    if (!oldPassword || !newPassword || typeof newPassword !== "string" || newPassword.length < 8) {
+      res.status(400).json({ error: "oldPassword and valid newPassword (min 8 chars) required" });
+      return;
+    }
+    const ok = await store.changePassword(session.sub, oldPassword, newPassword);
+    if (!ok) {
+      res.status(400).json({ error: "incorrect old password or user not found" });
+      return;
+    }
+    await store.log("api", "password_changed", `Password updated for ${session.email}`);
+    res.json({ ok: true });
   });
 
   return router;

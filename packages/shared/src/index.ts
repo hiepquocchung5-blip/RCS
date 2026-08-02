@@ -166,6 +166,18 @@ export interface ClientOrder {
   createdAt: string;
 }
 
+export interface ProjectProposal {
+  id: string;
+  title: string;
+  description: string;
+  projectType: ProjectType;
+  techStack: string[];
+  proposerId: string;
+  proposerName: string;
+  status: "pending" | "approved" | "rejected";
+  createdAt: string;
+}
+
 /** Passwords are exactly 16 characters, cryptographically generated. */
 export const PASSWORD_LENGTH = 16;
 /** OTPs expire after a strict 5 minutes. */

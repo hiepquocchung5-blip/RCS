@@ -26,3 +26,30 @@ test("passwords are not repeated", () => {
   }
   assert.equal(seen.size, 500);
 });
+
+test("user can change password with valid credentials", async () => {
+  const { Store } = await import("../src/store.js");
+  const store = new Store();
+  const email = "founder@risecorestudio.com";
+  const oldPw = "OldPassword123!";
+  const newPw = "NewPassword456!";
+  await store.createUser({
+    email,
+    name: "Founder",
+    role: "admin",
+    skillLevel: "senior",
+    password: oldPw,
+  });
+  
+  const userBefore = await store.authenticateUser(email, oldPw);
+  assert.ok(userBefore);
+  
+  const changed = await store.changePassword(userBefore.id, oldPw, newPw);
+  assert.equal(changed, true);
+  
+  const oldAuth = await store.authenticateUser(email, oldPw);
+  assert.equal(oldAuth, undefined);
+  
+  const newAuth = await store.authenticateUser(email, newPw);
+  assert.ok(newAuth);
+});

@@ -141,6 +141,17 @@ export function login(
   return request("/auth/login", { method: "POST", body: { email, password } });
 }
 
+export function changePassword(
+  oldPassword: string,
+  newPassword: string,
+): Promise<{ ok: boolean }> {
+  return request("/auth/change-password", {
+    method: "POST",
+    body: { oldPassword, newPassword },
+    auth: true,
+  });
+}
+
 export function apply(input: {
   email: string;
   name: string;
