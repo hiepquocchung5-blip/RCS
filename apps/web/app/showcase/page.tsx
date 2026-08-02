@@ -269,6 +269,55 @@ export default function ShowcasePage() {
             </div>
           )}
         </div>
+
+        {/* 5-Star Client Reviews & Testimonial Collector */}
+        <section className="mt-20 border-t border-rise-border/60 pt-12 space-y-8">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="font-mono text-xs uppercase tracking-widest text-rise-gold">Verified Feedback</p>
+              <h2 className="font-display text-3xl">Client Reviews & 5-Star Testimonials</h2>
+              <p className="mt-1 text-sm text-rise-muted">
+                Direct reviews from founders and clients who shipped products with RiseCoreStudio.
+              </p>
+            </div>
+          </div>
+
+          {/* Testimonials Cards Grid */}
+          <div className="grid gap-6 md:grid-cols-3">
+            <div className="rounded-xl border border-rise-border bg-rise-surface p-6 space-y-3 shadow-lg">
+              <div className="flex text-rise-gold text-sm gap-1">★ ★ ★ ★ ★</div>
+              <p className="text-sm italic text-rise-text/90">
+                “RiseCoreStudio shipped our entire Next.js WebGL platform in under 24 days. The milestone transparency was unmatched.”
+              </p>
+              <div className="pt-2 border-t border-rise-border/40 font-mono text-xs">
+                <p className="font-bold text-rise-accent">Pai Htoo Khant</p>
+                <p className="text-rise-muted">Founder & Product Lead</p>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-rise-border bg-rise-surface p-6 space-y-3 shadow-lg">
+              <div className="flex text-rise-gold text-sm gap-1">★ ★ ★ ★ ★</div>
+              <p className="text-sm italic text-rise-text/90">
+                “The Telegram Mini-App integration and automated bot notifications allowed our clients to track tickets without leaving chat.”
+              </p>
+              <div className="pt-2 border-t border-rise-border/40 font-mono text-xs">
+                <p className="font-bold text-rise-accent">Filip</p>
+                <p className="text-rise-muted">Co-Founder & Engineering Lead</p>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-rise-border bg-rise-surface p-6 space-y-3 shadow-lg">
+              <div className="flex text-rise-gold text-sm gap-1">★ ★ ★ ★ ★</div>
+              <p className="text-sm italic text-rise-text/90">
+                “From zero to production on our VPS in 30 days. The automated milestone certificate system gave our board total confidence.”
+              </p>
+              <div className="pt-2 border-t border-rise-border/40 font-mono text-xs">
+                <p className="font-bold text-rise-accent">Shayy</p>
+                <p className="text-rise-muted">Co-Founder & Operations Lead</p>
+              </div>
+            </div>
+          </div>
+        </section>
       </div>
     </div>
   );
