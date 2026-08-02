@@ -34,7 +34,7 @@ export function orderRoutes(config: ApiConfig, store: Store): Router {
       `Client order from ${order.email} (${order.projectType}) awaiting admin review`,
     );
 
-    // Send Telegram Notification
+    // Send Telegram Notification asynchronously without blocking client HTTP response
     const tgMsg = `<b>🚀 New Project Request Received</b>\n\n` +
       `• <b>Client:</b> ${order.name}\n` +
       `• <b>Email:</b> ${order.email}\n` +
@@ -42,7 +42,7 @@ export function orderRoutes(config: ApiConfig, store: Store): Router {
       (order.company ? `• <b>Company:</b> ${order.company}\n` : "") +
       `• <b>Type:</b> ${order.projectType}\n` +
       `• <b>Brief:</b> ${order.brief.slice(0, 150)}...`;
-    await notifier.sendMessage(tgMsg).catch(() => {});
+    void notifier.sendMessage(tgMsg).catch(() => {});
 
     res.status(201).json({ orderId: order.id });
   });

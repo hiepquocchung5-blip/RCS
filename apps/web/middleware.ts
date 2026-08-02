@@ -2,6 +2,18 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 export function middleware(request: NextRequest) {
+  // Handle CORS OPTIONS preflight
+  if (request.method === "OPTIONS") {
+    return new NextResponse(null, {
+      status: 204,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization, x-guest-session",
+      },
+    });
+  }
+
   const url = request.nextUrl.clone();
   const host = (request.headers.get("host") || "").toLowerCase();
 
