@@ -3,6 +3,7 @@ import type { ApiConfig } from "../config.js";
 import type { Store } from "../store.js";
 import { requireAuth, requireRole, type AuthedRequest } from "../middleware.js";
 import { orderSchema, validationError } from "../schemas.js";
+import { createTelegramNotifier } from "../telegram.js";
 
 /**
  * Client-side pipeline: the public "Request a project" form creates an Order;
@@ -10,6 +11,7 @@ import { orderSchema, validationError } from "../schemas.js";
  */
 export function orderRoutes(config: ApiConfig, store: Store): Router {
   const router = Router();
+  const notifier = createTelegramNotifier(config);
 
   router.post("/", async (req: Request, res: Response) => {
     const parsed = orderSchema.safeParse(req.body);
@@ -17,11 +19,12 @@ export function orderRoutes(config: ApiConfig, store: Store): Router {
       res.status(400).json(validationError(parsed.error));
       return;
     }
-    const { name, email, company, projectType, brief } = parsed.data;
+    const { name, email, company, telegramUsername, projectType, brief } = parsed.data;
     const order = await store.createOrder({
       name,
       email,
       company,
+      telegramUsername,
       projectType,
       brief,
     });
@@ -30,6 +33,17 @@ export function orderRoutes(config: ApiConfig, store: Store): Router {
       "order_received",
       `Client order from ${order.email} (${order.projectType}) awaiting admin review`,
     );
+
+    // Send Telegram Notification
+    const tgMsg = `<b>🚀 New Project Request Received</b>\n\n` +
+      `• <b>Client:</b> ${order.name}\n` +
+      `• <b>Email:</b> ${order.email}\n` +
+      (order.telegramUsername ? `• <b>Telegram:</b> ${order.telegramUsername}\n` : "") +
+      (order.company ? `• <b>Company:</b> ${order.company}\n` : "") +
+      `• <b>Type:</b> ${order.projectType}\n` +
+      `• <b>Brief:</b> ${order.brief.slice(0, 150)}...`;
+    await notifier.sendMessage(tgMsg).catch(() => {});
+
     res.status(201).json({ orderId: order.id });
   });
 

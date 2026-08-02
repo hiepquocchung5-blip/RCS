@@ -801,19 +801,21 @@ export class Store {
     name: string;
     email: string;
     company: string;
+    telegramUsername?: string;
     projectType: ProjectType;
     brief: string;
   }): Promise<ClientOrder> {
     const order: ClientOrder = {
       id: randomUUID(),
       ...input,
+      telegramUsername: input.telegramUsername || undefined,
       status: "new",
       createdAt: new Date().toISOString(),
     };
     if (this.pool) {
       await this.pool.query(
-        `INSERT INTO client_orders (id, name, email, company, project_type, brief, status, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-        [order.id, order.name, order.email, order.company, order.projectType, order.brief, order.status, order.createdAt]
+        `INSERT INTO client_orders (id, name, email, company, telegram_username, project_type, brief, status, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [order.id, order.name, order.email, order.company, order.telegramUsername || null, order.projectType, order.brief, order.status, order.createdAt]
       );
     } else {
       this.orders.set(order.id, order);
@@ -823,7 +825,7 @@ export class Store {
 
   async listOrders(): Promise<readonly ClientOrder[]> {
     if (this.pool) {
-      const res = await this.pool.query(`SELECT id, name, email, company, project_type as "projectType", brief, status, created_at as "createdAt" FROM client_orders ORDER BY created_at DESC`);
+      const res = await this.pool.query(`SELECT id, name, email, company, telegram_username as "telegramUsername", project_type as "projectType", brief, status, created_at as "createdAt" FROM client_orders ORDER BY created_at DESC`);
       return res.rows.map(r => ({
         ...r,
         createdAt: new Date(r.createdAt).toISOString()

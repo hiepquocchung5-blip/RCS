@@ -19,6 +19,7 @@ export default function RequestPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [company, setCompany] = useState("");
+  const [telegramUsername, setTelegramUsername] = useState("");
   const [projectType, setProjectType] = useState<ProjectType>("web_app");
   const [brief, setBrief] = useState("");
   const [busy, setBusy] = useState(false);
@@ -35,10 +36,11 @@ export default function RequestPage() {
         name: name.trim(),
         email: email.trim(),
         company: company.trim(),
+        telegramUsername: telegramUsername.trim(),
         projectType,
         brief: brief.trim(),
       });
-      toast("success", "Your brief is in. We'll reply by email.");
+      toast("success", "Your brief is in. We'll reply by email and Telegram.");
       setDone(true);
     } catch (error) {
       const fieldErrors = fieldErrorsFrom(error);
@@ -148,7 +150,7 @@ export default function RequestPage() {
               )}
             </div>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-3">
             <div className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wider text-rise-muted">
               <label htmlFor="request-company">
                 Company <span className="text-[10px] font-normal normal-case text-rise-muted/70">(optional)</span>
@@ -169,6 +171,19 @@ export default function RequestPage() {
                   {errors.company}
                 </span>
               )}
+            </div>
+            <div className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wider text-rise-muted">
+              <label htmlFor="request-telegram">
+                Telegram Handle <span className="text-[10px] font-normal normal-case text-rise-muted/70">(optional)</span>
+              </label>
+              <input
+                id="request-telegram"
+                maxLength={80}
+                placeholder="@username"
+                value={telegramUsername}
+                onChange={(e) => setTelegramUsername(e.target.value)}
+                className={inputClass}
+              />
             </div>
             <div className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wider text-rise-muted">
               <label htmlFor="request-type">Project type</label>

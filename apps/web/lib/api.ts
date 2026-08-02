@@ -332,6 +332,7 @@ export function submitOrder(input: {
   name: string;
   email: string;
   company: string;
+  telegramUsername?: string;
   projectType: string;
   brief: string;
 }): Promise<{ orderId: string }> {
