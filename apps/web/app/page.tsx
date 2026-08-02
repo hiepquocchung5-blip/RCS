@@ -110,6 +110,59 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* Platform Architectural Capabilities & Modern Stack */}
+      <section className="mx-auto max-w-6xl px-6 py-20">
+        <div className="mb-12 text-center max-w-3xl mx-auto">
+          <p className="font-mono text-xs uppercase tracking-[0.35em] text-rise-accent">Engineered for Excellence</p>
+          <h2 className="font-display mt-3 text-4xl sm:text-5xl">Modern Platform Architecture</h2>
+          <p className="mt-4 text-base text-rise-muted">
+            RiseCoreStudio replaces legacy app bloat with fast, resilient Progressive Web Apps, WebGL 3D interactive interfaces, and automated multi-channel delivery.
+          </p>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          <article className="rounded-2xl border border-rise-border bg-rise-surface p-6 space-y-3 hover:border-rise-accent/50 transition-colors shadow-lg">
+            <div className="h-10 w-10 rounded-xl bg-rise-accent/10 border border-rise-accent/30 flex items-center justify-center font-mono text-lg text-rise-accent">
+              📱
+            </div>
+            <h3 className="text-lg font-bold text-rise-text">PWA & Telegram TMA Engine</h3>
+            <p className="text-xs leading-relaxed text-rise-muted">
+              Native Telegram Mini-App (@rcstudiobot) and PWA offline shell. Instant launch without app store delays.
+            </p>
+          </article>
+
+          <article className="rounded-2xl border border-rise-border bg-rise-surface p-6 space-y-3 hover:border-rise-gold/50 transition-colors shadow-lg">
+            <div className="h-10 w-10 rounded-xl bg-rise-gold/10 border border-rise-gold/30 flex items-center justify-center font-mono text-lg text-rise-gold">
+              🎨
+            </div>
+            <h3 className="text-lg font-bold text-rise-text">WebGL 3D & Vector Graphics</h3>
+            <p className="text-xs leading-relaxed text-rise-muted">
+              Interactive 3D canvas chevron rendering, smooth wave liquid physics, and cybernetic metallic vector assets.
+            </p>
+          </article>
+
+          <article className="rounded-2xl border border-rise-border bg-rise-surface p-6 space-y-3 hover:border-emerald-500/50 transition-colors shadow-lg">
+            <div className="h-10 w-10 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center font-mono text-lg text-emerald-400">
+              📜
+            </div>
+            <h3 className="text-lg font-bold text-rise-text">Cryptographic Certificates</h3>
+            <p className="text-xs leading-relaxed text-rise-muted">
+              1-click client milestone sign-off generating SHA-256 verifiable completion diplomas and instant downloads.
+            </p>
+          </article>
+
+          <article className="rounded-2xl border border-rise-border bg-rise-surface p-6 space-y-3 hover:border-blue-400/50 transition-colors shadow-lg">
+            <div className="h-10 w-10 rounded-xl bg-blue-400/10 border border-blue-400/30 flex items-center justify-center font-mono text-lg text-blue-400">
+              ⚡
+            </div>
+            <h3 className="text-lg font-bold text-rise-text">Sub-10ms Async Pipeline</h3>
+            <p className="text-xs leading-relaxed text-rise-muted">
+              Non-blocking event dispatchers, real-time PM2 process gauges, and zero-downtime automated deployment scripts.
+            </p>
+          </article>
+        </div>
+      </section>
+
       <section className="mx-auto flex max-w-4xl flex-col items-center px-6 py-24 text-center">
         <p className="font-mono text-xs uppercase tracking-[0.32em] text-rise-accent">Have something in mind?</p>
         <h2 className="font-display mt-4 text-4xl sm:text-5xl">Let’s shape the right way forward.</h2>
