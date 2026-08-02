@@ -1,6 +1,6 @@
 // RiseCoreStudio Service Worker (PWA & Push Notifications)
-const CACHE_NAME = "rcs-pwa-v1";
-const OFFLINE_URLS = ["/", "/showcase", "/login"];
+const CACHE_NAME = "rcs-pwa-v2";
+const OFFLINE_URLS = ["/", "/showcase", "/login", "/offline.html"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -25,7 +25,7 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   if (event.request.mode === "navigate") {
     event.respondWith(
-      fetch(event.request).catch(() => caches.match(event.request) || caches.match("/"))
+      fetch(event.request).catch(() => caches.match(event.request) || caches.match("/offline.html"))
     );
   }
 });
