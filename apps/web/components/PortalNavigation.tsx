@@ -30,9 +30,39 @@ export function PortalNavigation() {
     sync();
     window.addEventListener("storage", sync);
     window.addEventListener("rcs:session", sync);
+
+    // Global Keybinding Shortcuts (G B, G P, G S, G L)
+    let lastKey = "";
+    let timer: NodeJS.Timeout | null = null;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (["INPUT", "TEXTAREA", "SELECT"].includes((e.target as HTMLElement)?.tagName)) {
+        return;
+      }
+
+      const key = e.key.toLowerCase();
+      if (lastKey === "g") {
+        if (key === "b") window.location.href = getAuthUrl("/board");
+        if (key === "p") window.location.href = getAuthUrl("/projects");
+        if (key === "s") window.location.href = "/showcase";
+        if (key === "l") window.location.href = getAuthUrl("/logs");
+        lastKey = "";
+        if (timer) clearTimeout(timer);
+      } else if (key === "g") {
+        lastKey = "g";
+        timer = setTimeout(() => {
+          lastKey = "";
+        }, 1200);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
     return () => {
       window.removeEventListener("storage", sync);
       window.removeEventListener("rcs:session", sync);
+      window.removeEventListener("keydown", handleKeyDown);
+      if (timer) clearTimeout(timer);
     };
   }, []);
 

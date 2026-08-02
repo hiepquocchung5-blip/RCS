@@ -72,3 +72,7 @@ npm-workspaces monorepo, build order `shared → api → web`:
 ## Documentation map
 
 `docs/BRIEF.md` (product purpose), `docs/ARCHITECTURE.md` (boundaries and decisions), `docs/INFRASTRUCTURE.md` and `DEPLOYMENT.md` (VPS topology), `docs/OPERATIONS.md` (live URLs and health checks), `STRUCTURE.md` (repo map), `AGENT.md` (deterministic automation rules — RCS "agents" are background workers and webhook listeners, not generative AI), `PROTOTYPE.md` (interface and product-language standards).
+
+## Current handoff
+
+Before making changes, read `docs/HANDOFF-CLAUDE.md` and `docs/MUST-HAVE-FEATURES.md`. The handoff records current verification results, production blockers and the prioritized next work. Preserve any dirty files listed there; they may be active user work.
