@@ -96,6 +96,7 @@ export function attachChat(server: Server, store: Store, jwtSecret: string): voi
         for (const entry of await store.listChatHistory(msg.channel, CHAT_HISTORY_LIMIT)) {
           send(socket, entry);
         }
+        broadcastPresence(msg.channel);
         return;
       }
 
@@ -136,6 +137,31 @@ export function attachChat(server: Server, store: Store, jwtSecret: string): voi
       }
     };
 
+    const broadcastPresence = (channel: string): void => {
+      const onlineUsers = new Set<string>();
+      for (const client of wss.clients) {
+        if (client.readyState === WebSocket.OPEN) {
+          const s = sessions.get(client);
+          if (s && s.channel === channel) {
+            onlineUsers.add(s.user.email);
+          }
+        }
+      }
+      const presenceMsg = JSON.stringify({
+        type: "chat:presence",
+        channel,
+        onlineUsers: [...onlineUsers],
+      });
+      for (const client of wss.clients) {
+        if (
+          client.readyState === WebSocket.OPEN &&
+          sessions.get(client)?.channel === channel
+        ) {
+          client.send(presenceMsg);
+        }
+      }
+    };
+
     socket.on("message", (raw: Buffer | ArrayBuffer | Buffer[]) => {
       handleMessage(raw).catch((error: unknown) => {
         console.error("[rcs-chat] message handling failed", error);
@@ -148,7 +174,11 @@ export function attachChat(server: Server, store: Store, jwtSecret: string): voi
     });
 
     socket.on("close", () => {
+      const s = sessions.get(socket);
       sessions.delete(socket);
+      if (s) {
+        broadcastPresence(s.channel);
+      }
     });
   });
 }

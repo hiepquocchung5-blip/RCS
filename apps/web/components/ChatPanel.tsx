@@ -7,10 +7,12 @@ import { loadSession } from "@/lib/session";
 
 export function ChatPanel({ channel, label }: { channel: string; label: string }) {
   const [messages, setMessages] = useState<readonly ChatMessage[]>([]);
+  const [onlineUsers, setOnlineUsers] = useState<readonly string[]>([]);
   const [draft, setDraft] = useState("");
   const [connected, setConnected] = useState(false);
   const socketRef = useRef<WebSocket | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
+  const reconnectTimerRef = useRef<NodeJS.Timeout | null>(null);
   const session = loadSession();
 
   useEffect(() => {
@@ -21,86 +23,89 @@ export function ChatPanel({ channel, label }: { channel: string; label: string }
   }, []);
 
   useEffect(() => {
-    // Each (re)join replays server history, so start from a clean list —
-    // otherwise the replay is appended to stale messages and duplicates them.
-    setMessages([]);
-    const wsUrl = `${API_BASE.replace(/^http/, "ws")}/chat`;
-    const socket = new WebSocket(wsUrl);
-    socketRef.current = socket;
-    socket.onopen = () => {
-      if (session !== null) {
-        socket.send(
-          JSON.stringify({ type: "chat:join", channel, token: session.token }),
-        );
-      }
-    };
-    socket.onmessage = (event: MessageEvent<string>) => {
-      const parsed = parseChatServerMessage(event.data);
-      if (parsed?.type === "chat:joined") {
-        setConnected(true);
-      } else if (parsed?.type === "chat:message") {
-        setMessages((prev) => [...prev, parsed]);
+    let isSubscribed = true;
 
-        // Send browser notification if message comes from another user and tab is inactive
-        if (
-          typeof window !== "undefined" &&
-          "Notification" in window &&
-          Notification.permission === "granted" &&
-          document.hidden &&
-          parsed.author !== session?.user.name
-        ) {
-          try {
-            new Notification(`New message in ${label}`, {
-              body: `${parsed.author}: ${parsed.body}`,
-              icon: "/icon-192.png",
-            });
-          } catch {
-            // Ignore notification errors
-          }
+    function connect() {
+      if (!isSubscribed) return;
+      setMessages([]);
+      const wsUrl = `${API_BASE.replace(/^http/, "ws")}/chat`;
+      const socket = new WebSocket(wsUrl);
+      socketRef.current = socket;
+
+      socket.onopen = () => {
+        if (!isSubscribed) return;
+        if (session !== null) {
+          socket.send(
+            JSON.stringify({ type: "chat:join", channel, token: session.token }),
+          );
         }
-      } else if (parsed?.type === "chat:error") {
-        // 429 is a flood warning — the socket stays connected.
-        if (parsed.code !== 429) setConnected(false);
-        setMessages((prev) => [
-          ...prev,
-          {
-            type: "chat:message",
-            channel,
-            author: parsed.code === 429 ? "System" : "System Error",
-            body: `${parsed.message} (Code: ${parsed.code ?? "unknown"})`,
-            sentAt: new Date().toISOString(),
-          },
-        ]);
-      }
+      };
+
+      socket.onmessage = (event: MessageEvent<string>) => {
+        if (!isSubscribed) return;
+        const parsed = parseChatServerMessage(event.data);
+        if (parsed?.type === "chat:joined") {
+          setConnected(true);
+        } else if (parsed?.type === "chat:presence") {
+          setOnlineUsers(parsed.onlineUsers);
+        } else if (parsed?.type === "chat:message") {
+          setMessages((prev) => [...prev, parsed]);
+
+          // Send browser notification if message comes from another user and tab is inactive
+          if (
+            typeof window !== "undefined" &&
+            "Notification" in window &&
+            Notification.permission === "granted" &&
+            document.hidden &&
+            parsed.author !== session?.user.email
+          ) {
+            try {
+              new Notification(`New message in ${label}`, {
+                body: `${parsed.author}: ${parsed.body}`,
+                icon: "/icon-192.png",
+              });
+            } catch {
+              // Ignore notification errors
+            }
+          }
+        } else if (parsed?.type === "chat:error") {
+          if (parsed.code !== 429) setConnected(false);
+          setMessages((prev) => [
+            ...prev,
+            {
+              type: "chat:message",
+              channel,
+              author: parsed.code === 429 ? "System" : "System Error",
+              body: `${parsed.message} (Code: ${parsed.code ?? "unknown"})`,
+              sentAt: new Date().toISOString(),
+            },
+          ]);
+        }
+      };
+
+      socket.onclose = (event: CloseEvent) => {
+        if (!isSubscribed) return;
+        setConnected(false);
+        setOnlineUsers([]);
+        // Auto reconnect after 3 seconds unless closed with explicit permission failure
+        if (event.code !== 4401 && event.code !== 4403) {
+          reconnectTimerRef.current = setTimeout(connect, 3000);
+        }
+      };
+
+      socket.onerror = () => {
+        if (!isSubscribed) return;
+        setConnected(false);
+      };
+    }
+
+    connect();
+
+    return () => {
+      isSubscribed = false;
+      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+      if (socketRef.current) socketRef.current.close();
     };
-    socket.onclose = (event: CloseEvent) => {
-      setConnected(false);
-      if (event.code === 4401) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            type: "chat:message",
-            channel,
-            author: "System Error",
-            body: "Chat session is unauthorized. Please log in again.",
-            sentAt: new Date().toISOString(),
-          },
-        ]);
-      } else if (event.code === 4403) {
-        setMessages((prev) => [
-          ...prev,
-          {
-            type: "chat:message",
-            channel,
-            author: "System Error",
-            body: "You do not have permission to join this channel.",
-            sentAt: new Date().toISOString(),
-          },
-        ]);
-      }
-    };
-    socket.onerror = () => setConnected(false);
-    return () => socket.close();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [channel, session?.token]);
 
@@ -120,12 +125,19 @@ export function ChatPanel({ channel, label }: { channel: string; label: string }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex items-center gap-2 border-b border-rise-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-rise-muted">
-        {label}
-        <span
-          className={`h-2 w-2 rounded-full ${connected ? "bg-rise-success" : "bg-rise-error"}`}
-          title={connected ? "chat connected" : "chat offline"}
-        />
+      <div className="flex items-center justify-between border-b border-rise-border px-3 py-2 text-xs font-semibold uppercase tracking-wide text-rise-muted">
+        <div className="flex items-center gap-2">
+          <span>{label}</span>
+          <span
+            className={`h-2 w-2 rounded-full ${connected ? "bg-emerald-400" : "bg-rose-500"}`}
+            title={connected ? "chat connected" : "chat offline"}
+          />
+        </div>
+        {connected && onlineUsers.length > 0 && (
+          <span className="font-mono text-[10px] text-emerald-400">
+            🟢 {onlineUsers.length} online
+          </span>
+        )}
       </div>
       <div ref={listRef} className="min-h-0 flex-1 space-y-2 overflow-auto p-3 text-sm">
         {messages.length === 0 ? (

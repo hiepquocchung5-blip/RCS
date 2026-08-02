@@ -289,7 +289,13 @@ export interface ChatErrorMessage {
   code?: number;
 }
 
-export type ChatServerMessage = ChatMessage | ChatJoinedMessage | ChatErrorMessage;
+export interface ChatPresenceMessage {
+  type: "chat:presence";
+  channel: string;
+  onlineUsers: string[];
+}
+
+export type ChatServerMessage = ChatMessage | ChatJoinedMessage | ChatErrorMessage | ChatPresenceMessage;
 
 export function parseChatClientMessage(raw: string): ChatClientMessage | null {
   const parsed: unknown = JSON.parse(raw);
@@ -312,6 +318,17 @@ export function parseChatServerMessage(raw: string): ChatServerMessage | null {
   const parsed: unknown = JSON.parse(raw);
   if (typeof parsed !== "object" || parsed === null) return null;
   const msg = parsed as Record<string, unknown>;
+  if (
+    msg["type"] === "chat:presence" &&
+    typeof msg["channel"] === "string" &&
+    Array.isArray(msg["onlineUsers"])
+  ) {
+    return {
+      type: "chat:presence",
+      channel: msg["channel"],
+      onlineUsers: msg["onlineUsers"].filter((u): u is string => typeof u === "string"),
+    };
+  }
   if (
     msg["type"] === "chat:message" &&
     typeof msg["channel"] === "string" &&

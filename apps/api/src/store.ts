@@ -1212,6 +1212,16 @@ export class Store {
     }
 
     // Convert proposal to project
+    const user = await this.getUser(proposal.proposerId);
+    const devRole: "devops" | "frontend" | "backend" =
+      user && (user.role === "devops" || user.role === "frontend" || user.role === "backend")
+        ? user.role
+        : "backend";
+
+    const resourceMatrix: ResourceRequirement[] = user
+      ? [{ role: devRole, skillLevel: user.skillLevel, count: 1 }]
+      : [];
+
     const project = await this.createProject({
       name: proposal.title,
       type: proposal.projectType,
@@ -1219,7 +1229,7 @@ export class Store {
       clientName: `Internal Idea (${proposal.proposerName})`,
       isPublic: true,
       techStack: proposal.techStack,
-      resourceMatrix: [],
+      resourceMatrix,
     });
 
     // Automatically assign proposer to team
