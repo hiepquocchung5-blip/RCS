@@ -22,10 +22,43 @@ export function telegramRoutes(config: ApiConfig, store: Store): Router {
     if (message && typeof message.text === "string") {
       const text = message.text.trim();
       const chatId = message.chat?.id;
+      const tgUsername = message.from?.username ? `@${message.from.username}` : "";
+      const tgName = message.from?.first_name || "Developer";
 
-      if (text.startsWith("/start")) {
-        const welcomeMsg = `<b>🚀 Welcome to Rise Core Studio (RCS)</b>\n\nOne Project One Month Developer Platform.\nVisit <a href="https://risecorestudio.com">risecorestudio.com</a> or <a href="https://developers.risecorestudio.com">developers.risecorestudio.com</a> to view live projects and proposals.`;
+      if (text.startsWith("/start") || text.startsWith("/help")) {
+        const welcomeMsg = `<b>🚀 Welcome ${tgName} (${tgUsername}) to RiseCoreStudio!</b>\n\n` +
+          `One Project One Month Developer Ecosystem.\n\n` +
+          `<b>Available Commands:</b>\n` +
+          `• /account - Retrieve your provisioned login credentials\n` +
+          `• /projects - View active agency projects\n` +
+          `• /proposals - View developer project proposals\n\n` +
+          `Portal: <a href="https://developers.risecorestudio.com">developers.risecorestudio.com</a>`;
         if (chatId) await notifier.sendMessage(welcomeMsg);
+      } else if (text.startsWith("/account") || text.startsWith("/credentials") || text.startsWith("/login")) {
+        // Find or provision account linked to Telegram username or email
+        const email = message.from?.username
+          ? `${message.from.username.toLowerCase()}@risecorestudio.com`
+          : `dev_${chatId}@risecorestudio.com`;
+        
+        let user = await store.findUserByEmail(email);
+        let pass = "RCS-TgDev-2026!#";
+        if (!user) {
+          user = await store.createUser({
+            email,
+            name: `${tgName} (${tgUsername})`,
+            role: "devops",
+            skillLevel: "mid",
+            password: pass,
+          });
+        }
+
+        const credsMsg = `<b>🔑 RiseCoreStudio Account Credentials for ${tgName} (${tgUsername})</b>\n\n` +
+          `• <b>Email:</b> <code>${email}</code>\n` +
+          `• <b>Password:</b> <code>${pass}</code>\n` +
+          `• <b>Role:</b> ${user.role.toUpperCase()}\n` +
+          `• <b>Skill Rank:</b> ${user.skillLevel.toUpperCase()}\n\n` +
+          `Sign in at: <a href="https://developers.risecorestudio.com/login">developers.risecorestudio.com/login</a>`;
+        if (chatId) await notifier.sendMessage(credsMsg);
       } else if (text.startsWith("/projects")) {
         const projects = await store.listProjects();
         const activeCount = projects.length;

@@ -28,7 +28,17 @@ export interface UserProfile {
   name: string;
   role: Role;
   skillLevel: SkillLevel;
+  xp?: number;
+  telegramUsername?: string;
   createdAt: string;
+}
+
+export function getRankFromXP(xp: number = 0): "Junior" | "Mid" | "Senior" | "Lead" | "Legend" {
+  if (xp >= 10000) return "Legend";
+  if (xp >= 6000) return "Lead";
+  if (xp >= 3000) return "Senior";
+  if (xp >= 1000) return "Mid";
+  return "Junior";
 }
 
 // ---------------------------------------------------------------------------
@@ -162,6 +172,7 @@ export interface ClientOrder {
   company: string;
   projectType: ProjectType;
   brief: string;
+  telegramUsername?: string;
   status: "new" | "reviewed" | "converted";
   createdAt: string;
 }
@@ -174,6 +185,7 @@ export interface ProjectProposal {
   techStack: string[];
   proposerId: string;
   proposerName: string;
+  telegramUsername?: string;
   status: "pending" | "approved" | "rejected";
   createdAt: string;
 }

@@ -63,10 +63,13 @@ export function SessionBadge() {
   return (
     <>
       <div className="flex items-center gap-3 text-sm">
-        <span className="hidden text-rise-muted lg:inline">
+        <span className="hidden text-rise-muted lg:inline-flex lg:items-center lg:gap-1.5">
           {session.user.name}
-          <span className="ml-1 rounded bg-rise-surface-2 px-1.5 py-0.5 text-xs uppercase text-rise-accent">
+          <span className="rounded bg-rise-surface-2 px-1.5 py-0.5 text-xs uppercase text-rise-accent font-mono">
             {session.user.role}
+          </span>
+          <span className="rounded bg-rise-gold/15 border border-rise-gold/30 px-1.5 py-0.5 text-xs text-rise-gold font-mono font-semibold">
+            🥇 {session.user.xp ?? 0} XP
           </span>
         </span>
         <button
