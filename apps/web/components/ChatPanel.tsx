@@ -14,6 +14,13 @@ export function ChatPanel({ channel, label }: { channel: string; label: string }
   const session = loadSession();
 
   useEffect(() => {
+    // Request notification permission if supported and not denied
+    if (typeof window !== "undefined" && "Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission().catch(() => {});
+    }
+  }, []);
+
+  useEffect(() => {
     // Each (re)join replays server history, so start from a clean list —
     // otherwise the replay is appended to stale messages and duplicates them.
     setMessages([]);
@@ -33,6 +40,24 @@ export function ChatPanel({ channel, label }: { channel: string; label: string }
         setConnected(true);
       } else if (parsed?.type === "chat:message") {
         setMessages((prev) => [...prev, parsed]);
+
+        // Send browser notification if message comes from another user and tab is inactive
+        if (
+          typeof window !== "undefined" &&
+          "Notification" in window &&
+          Notification.permission === "granted" &&
+          document.hidden &&
+          parsed.author !== session?.user.name
+        ) {
+          try {
+            new Notification(`New message in ${label}`, {
+              body: `${parsed.author}: ${parsed.body}`,
+              icon: "/icon-192.png",
+            });
+          } catch {
+            // Ignore notification errors
+          }
+        }
       } else if (parsed?.type === "chat:error") {
         // 429 is a flood warning — the socket stays connected.
         if (parsed.code !== 429) setConnected(false);
