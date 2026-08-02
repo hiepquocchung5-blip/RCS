@@ -3,8 +3,9 @@ import type { ApiConfig } from "../config.js";
 import { generatePassword } from "../auth/password.js";
 import type { Store } from "../store.js";
 import { requireAuth, requireRole, type AuthedRequest } from "../middleware.js";
+import { Mailer } from "../mail.js";
 
-export function adminRoutes(config: ApiConfig, store: Store): Router {
+export function adminRoutes(config: ApiConfig, store: Store, mailer: Mailer): Router {
   const router = Router();
   router.use(requireAuth(config.jwtSecret), requireRole("admin"));
 
@@ -48,6 +49,17 @@ export function adminRoutes(config: ApiConfig, store: Store): Router {
     });
     await store.setApplicationStatus(id, "approved");
     const link = await store.createMagicLink(user.id, password);
+    const magicLinkUrl = `${config.apiBaseUrl.replace(/\/api$/, "")}/auth/magic/${link.token}`;
+    try {
+      await mailer.sendMail({
+        to: application.email,
+        subject: "RCS Onboarding — Application Approved",
+        text: `Hello ${application.name},\n\nYour developer application to RiseCoreStudio has been approved!\n\nUse this one-time magic link to retrieve your generated credentials (burns after one use):\n\n${magicLinkUrl}\n\nBest regards,\nRiseCoreStudio Onboarding Agent`,
+        html: `<p>Hello <strong>${application.name}</strong>,</p><p>Your developer application to RiseCoreStudio has been approved!</p><p>Use this one-time magic link to retrieve your generated credentials (burns after one use):</p><p><a href="${magicLinkUrl}" style="padding: 10px 20px; background-color: #00f0ff; color: #0f111a; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">Retrieve Credentials</a></p><p>Or copy this link: ${magicLinkUrl}</p><p>Best regards,<br>RiseCoreStudio Onboarding Agent</p>`,
+      });
+    } catch (mailError: unknown) {
+      console.error("[onboarding-agent] Failed to send credentials email:", mailError);
+    }
     await store.log(
       "onboarding-agent",
       "application_approved",

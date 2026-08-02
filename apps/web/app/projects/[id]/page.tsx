@@ -36,6 +36,7 @@ export default function ProjectDetailPage() {
   const [milestoneTitle, setMilestoneTitle] = useState("");
   const [milestoneDate, setMilestoneDate] = useState("");
   const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const { toast } = useToast();
   const session = loadSession();
   const canManage = session?.user.role === "admin" || session?.user.role === "pm";
@@ -93,6 +94,7 @@ export default function ProjectDetailPage() {
   async function saveDelivery(event: FormEvent): Promise<void> {
     event.preventDefault();
     setSaving(true);
+    setErrors({});
     try {
       const result = await updateProjectDelivery(projectId, {
         deadline: deadline.length > 0 ? deadline : null,
@@ -102,7 +104,17 @@ export default function ProjectDetailPage() {
       setProject(result.project);
       toast("success", "Project ownership, health and schedule were updated.");
     } catch (reason) {
-      toast("error", reason instanceof Error ? reason.message : "Could not update delivery settings");
+      if (reason instanceof ApiError && reason.issues) {
+        const fieldErrors: Record<string, string> = {};
+        for (const issue of reason.issues) {
+          const path = issue.path.join(".");
+          fieldErrors[path] = issue.message;
+        }
+        setErrors(fieldErrors);
+        toast("error", "Please fix the validation errors below.");
+      } else {
+        toast("error", reason instanceof Error ? reason.message : "Could not update delivery settings");
+      }
     } finally {
       setSaving(false);
     }
@@ -111,6 +123,7 @@ export default function ProjectDetailPage() {
   async function addMilestone(event: FormEvent): Promise<void> {
     event.preventDefault();
     setSaving(true);
+    setErrors({});
     try {
       const result = await createMilestone(projectId, { title: milestoneTitle, dueDate: milestoneDate });
       setProject((current) => current === null ? current : { ...current, milestones: [...current.milestones, result.milestone] });
@@ -118,7 +131,17 @@ export default function ProjectDetailPage() {
       setMilestoneDate("");
       toast("success", `Milestone “${result.milestone.title}” was added.`);
     } catch (reason) {
-      toast("error", reason instanceof Error ? reason.message : "Could not add milestone");
+      if (reason instanceof ApiError && reason.issues) {
+        const fieldErrors: Record<string, string> = {};
+        for (const issue of reason.issues) {
+          const path = issue.path.join(".");
+          fieldErrors[path] = issue.message;
+        }
+        setErrors(fieldErrors);
+        toast("error", "Please fix the validation errors below.");
+      } else {
+        toast("error", reason instanceof Error ? reason.message : "Could not add milestone");
+      }
     } finally {
       setSaving(false);
     }
@@ -167,10 +190,12 @@ export default function ProjectDetailPage() {
                   <option value="">Not assigned</option>
                   {project.team.map((member) => <option key={member.userId} value={member.userId}>{member.name}</option>)}
                 </select>
+                {errors.ownerId && <span className="text-xs text-rise-error">{errors.ownerId}</span>}
               </label>
               <label className="flex flex-col gap-1 text-xs text-rise-muted">
                 Target deadline
                 <input type="date" value={deadline} onChange={(event) => setDeadline(event.target.value)} className="rounded-lg border border-rise-border bg-rise-bg px-3 py-2 text-sm text-rise-text outline-none focus:border-rise-accent" />
+                {errors.deadline && <span className="text-xs text-rise-error">{errors.deadline}</span>}
               </label>
             </div>
             <label className="flex flex-col gap-1 text-xs text-rise-muted">
@@ -180,6 +205,7 @@ export default function ProjectDetailPage() {
                 <option value="at_risk">At risk</option>
                 <option value="blocked">Blocked</option>
               </select>
+              {errors.health && <span className="text-xs text-rise-error">{errors.health}</span>}
             </label>
             <button type="submit" disabled={saving} className="rounded-full bg-rise-accent px-4 py-2 text-sm font-semibold text-rise-bg disabled:opacity-50">{saving ? "Saving…" : "Save delivery settings"}</button>
           </form>
@@ -192,10 +218,12 @@ export default function ProjectDetailPage() {
             <label className="flex flex-col gap-1 text-xs text-rise-muted">
               Milestone title
               <input required maxLength={200} value={milestoneTitle} onChange={(event) => setMilestoneTitle(event.target.value)} placeholder="Client acceptance" className="rounded-lg border border-rise-border bg-rise-bg px-3 py-2 text-sm text-rise-text outline-none focus:border-rise-accent" />
+              {errors.title && <span className="text-xs text-rise-error">{errors.title}</span>}
             </label>
             <label className="flex flex-col gap-1 text-xs text-rise-muted">
               Due date
               <input required type="date" value={milestoneDate} onChange={(event) => setMilestoneDate(event.target.value)} className="rounded-lg border border-rise-border bg-rise-bg px-3 py-2 text-sm text-rise-text outline-none focus:border-rise-accent" />
+              {errors.dueDate && <span className="text-xs text-rise-error">{errors.dueDate}</span>}
             </label>
             <button type="submit" disabled={saving} className="rounded-full border border-rise-gold px-4 py-2 text-sm font-semibold text-rise-gold transition-colors hover:bg-rise-gold hover:text-rise-bg disabled:opacity-50">{saving ? "Adding…" : "Add milestone"}</button>
           </form>

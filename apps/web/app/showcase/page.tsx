@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { PROJECT_TYPE_LABELS, type ShowcaseProject } from "@rcs/shared";
-import { fetchShowcase, reactToShowcase } from "@/lib/api";
+import { fetchShowcase, reactToShowcase, getAuthUrl } from "@/lib/api";
 import { useToast } from "@/components/ToastProvider";
 
 export default function ShowcasePage() {
@@ -129,12 +129,12 @@ export default function ShowcasePage() {
                 Finished projects appear here the moment they are flagged
                 public. Meanwhile — tell us about yours.
               </p>
-              <Link
-                href="/request"
+              <a
+                href={getAuthUrl("/request")}
                 className="mt-6 inline-block rounded-full bg-rise-accent px-6 py-2.5 text-sm font-semibold text-rise-bg transition-transform hover:scale-105"
               >
                 Request a project
-              </Link>
+              </a>
             </div>
           ) : (
             <div className="grid gap-6 md:grid-cols-2">
@@ -146,7 +146,9 @@ export default function ShowcasePage() {
                   <div>
                     <div className="flex items-baseline justify-between gap-3">
                       <h2 className="font-display text-2xl group-hover:text-rise-gold">
-                        {project.name}
+                        <Link href={`/showcase/${project.id}`} className="hover:underline">
+                          {project.name}
+                        </Link>
                       </h2>
                       <span className="shrink-0 rounded-full border border-rise-border px-2.5 py-0.5 text-[10px] uppercase tracking-wide text-rise-muted">
                         {PROJECT_TYPE_LABELS[project.type]}

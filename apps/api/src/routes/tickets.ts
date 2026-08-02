@@ -1,8 +1,8 @@
 import { Router, type Response } from "express";
-import { isRole, isTicketStatus } from "@rcs/shared";
 import type { ApiConfig } from "../config.js";
 import type { Store } from "../store.js";
 import { requireAuth, requireRole, type AuthedRequest } from "../middleware.js";
+import { createTicketSchema, transitionTicketSchema, validationError } from "../schemas.js";
 
 export function ticketRoutes(config: ApiConfig, store: Store): Router {
   const router = Router();
@@ -29,25 +29,12 @@ export function ticketRoutes(config: ApiConfig, store: Store): Router {
     "/",
     requireRole("admin", "pm"),
     async (req: AuthedRequest, res: Response) => {
-      const body = req.body as Record<string, unknown>;
-      const title = body["title"];
-      const description = body["description"];
-      const assigneeRole = body["assigneeRole"];
-      const projectId = body["projectId"];
-      if (
-        typeof title !== "string" ||
-        title.length === 0 ||
-        typeof description !== "string" ||
-        typeof assigneeRole !== "string" ||
-        !isRole(assigneeRole) ||
-        typeof projectId !== "string" ||
-        projectId.length === 0
-      ) {
-        res.status(400).json({
-          error: "title, description, assigneeRole and projectId are required",
-        });
+      const parsed = createTicketSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json(validationError(parsed.error));
         return;
       }
+      const { title, description, assigneeRole, projectId } = parsed.data;
       const project = await store.getProject(projectId);
       if (project === undefined) {
         res.status(404).json({ error: "project not found" });
@@ -71,12 +58,12 @@ export function ticketRoutes(config: ApiConfig, store: Store): Router {
   /** Single-step, deterministic transition; illegal moves are refused. */
   router.post("/:id/transition", async (req: AuthedRequest, res: Response) => {
     const id = req.params.id;
-    const body = req.body as Record<string, unknown>;
-    const to = body["to"];
-    if (id === undefined || typeof to !== "string" || !isTicketStatus(to)) {
-      res.status(400).json({ error: "ticket id and target status are required" });
+    const parsed = transitionTicketSchema.safeParse(req.body);
+    if (id === undefined || !parsed.success) {
+      res.status(400).json(parsed.success ? { error: "ticket id required" } : validationError(parsed.error));
       return;
     }
+    const { to } = parsed.data;
     const allTickets = await store.listTickets();
     const ticket = allTickets.find((candidate) => candidate.id === id);
     const session = req.session;

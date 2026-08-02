@@ -1,0 +1,84 @@
+services:
+  rcs-db:
+    image: postgres:16-alpine
+    container_name: rcs-db
+    restart: always
+    environment:
+      POSTGRES_USER: rcs_app
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-rcs_secret_password}
+      POSTGRES_DB: rcs_production
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rcs_app -d rcs_production"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  rcs-redis:
+    image: redis:7-alpine
+    container_name: rcs-redis
+    restart: always
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  rcs-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: api-runner
+    container_name: rcs-api
+    restart: always
+    ports:
+      - "4000:4000"
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgres://rcs_app:${DATABASE_PASSWORD:-rcs_secret_password}@rcs-db:5432/rcs_production
+      REDIS_URL: redis://rcs-redis:6379
+      RCS_API_BASE_URL: ${RCS_API_BASE_URL:-https://risecorestudio.com/api}
+      RCS_WEB_ORIGIN: ${RCS_WEB_ORIGIN:-https://risecorestudio.com,https://www.risecorestudio.com}
+      RCS_TRUSTED_DOMAIN: ${RCS_TRUSTED_DOMAIN:-risecorestudio.com}
+      RCS_LOGIN_REDIRECT_URL: ${RCS_LOGIN_REDIRECT_URL:-https://developers.risecorestudio.com/login}
+      RCS_JWT_SECRET: ${RCS_JWT_SECRET}
+      RCS_GITHUB_WEBHOOK_SECRET: ${RCS_GITHUB_WEBHOOK_SECRET}
+      RCS_ADMIN_EMAIL: ${RCS_ADMIN_EMAIL}
+      RCS_ADMIN_PASSWORD: ${RCS_ADMIN_PASSWORD}
+      RCS_FOUNDERS: ${RCS_FOUNDERS}
+      RCS_SMTP_HOST: ${RCS_SMTP_HOST:-127.0.0.1}
+      RCS_SMTP_PORT: ${RCS_SMTP_PORT:-25}
+      RCS_SMTP_FROM: ${RCS_SMTP_FROM:-no-reply@risecorestudio.com}
+      RCS_SMTP_USER: ${RCS_SMTP_USER}
+      RCS_SMTP_PASS: ${RCS_SMTP_PASS}
+      RCS_SMTP_SECURE: ${RCS_SMTP_SECURE:-false}
+    depends_on:
+      rcs-db:
+        condition: service_healthy
+      rcs-redis:
+        condition: service_healthy
+
+  rcs-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: web-runner
+    container_name: rcs-web
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      NEXT_PUBLIC_RCS_API: ${NEXT_PUBLIC_RCS_API:-https://risecorestudio.com/api}
+      NEXT_PUBLIC_RCS_COOKIE_DOMAIN: ${NEXT_PUBLIC_RCS_COOKIE_DOMAIN:-risecorestudio.com}
+    depends_on:
+      - rcs-api
+
+volumes:
+  postgres_data:
+  redis_data:

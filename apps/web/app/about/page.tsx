@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
+import { getAuthUrl } from "@/lib/api";
 
 const VALUES = [
   {
@@ -154,12 +154,12 @@ export default function AboutPage() {
           <h2 className="font-display text-2xl">Ready to build?</h2>
           <p className="mt-2 text-sm text-rise-muted">Explore our portfolio or brief us on your project constraints.</p>
           <div className="mt-6 flex justify-center gap-4">
-            <Link href="/request" className="rounded-full bg-rise-accent px-6 py-2.5 text-sm font-semibold text-rise-bg transition-transform hover:scale-105">
+            <a href={getAuthUrl("/request")} className="rounded-full bg-rise-accent px-6 py-2.5 text-sm font-semibold text-rise-bg transition-transform hover:scale-105">
               Start a project
-            </Link>
-            <Link href="/showcase" className="rounded-full border border-rise-border px-6 py-2.5 text-sm transition-colors hover:border-rise-accent hover:text-rise-accent">
+            </a>
+            <a href="/showcase" className="rounded-full border border-rise-border px-6 py-2.5 text-sm transition-colors hover:border-rise-accent hover:text-rise-accent">
               View Showcase
-            </Link>
+            </a>
           </div>
         </footer>
       </div>

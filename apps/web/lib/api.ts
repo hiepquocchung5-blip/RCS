@@ -10,6 +10,8 @@ import type {
   Ticket,
   TicketStatus,
   UserProfile,
+  StockShare,
+  StockTransaction,
 } from "@rcs/shared";
 import { loadSession } from "./session";
 
@@ -19,13 +21,67 @@ export const API_BASE =
 export const AUTH_BASE =
   process.env.NEXT_PUBLIC_RCS_AUTH ?? `${API_BASE}/auth`;
 
+const COOKIE_DOMAIN = process.env.NEXT_PUBLIC_RCS_COOKIE_DOMAIN;
+
+/** True when running on localhost — all subdomain logic is skipped. */
+function isLocal(): boolean {
+  if (!COOKIE_DOMAIN) return true;
+  if (typeof window !== "undefined") {
+    const h = window.location.hostname;
+    if (h.includes("localhost") || h.includes("127.0.0.1")) return true;
+  }
+  return false;
+}
+
+/**
+ * Build an absolute URL for the **auth** subdomain in production.
+ * On localhost it returns the path as-is so every route works without subdomains.
+ */
+export function getAuthUrl(path: string): string {
+  return isLocal() ? path : `https://auth.${COOKIE_DOMAIN}${path}`;
+}
+
+/**
+ * Build an absolute URL for the **stock** subdomain in production.
+ * On localhost it returns `/stock` prefixed paths directly.
+ */
+export function getStockUrl(path = "/"): string {
+  if (isLocal()) return path === "/" ? "/stock" : `/stock${path}`;
+  return `https://stock.${COOKIE_DOMAIN}${path}`;
+}
+
+/**
+ * Build the absolute homepage URL.
+ * On localhost returns "/".
+ */
+export function getHomeUrl(): string {
+  return isLocal() ? "/" : `https://${COOKIE_DOMAIN}/`;
+}
+
 export class ApiError extends Error {
+  readonly issues?: Array<{ path: (string | number)[]; message: string }>;
+
   constructor(
     readonly status: number,
     message: string,
+    issues?: Array<{ path: (string | number)[]; message: string }>,
   ) {
     super(message);
+    this.issues = issues;
   }
+}
+
+/**
+ * Flatten zod validation issues from an ApiError into a field → message map
+ * for inline form errors. Returns null when the error carries no issues.
+ */
+export function fieldErrorsFrom(error: unknown): Record<string, string> | null {
+  if (!(error instanceof ApiError) || !error.issues) return null;
+  const fieldErrors: Record<string, string> = {};
+  for (const issue of error.issues) {
+    fieldErrors[issue.path.join(".")] = issue.message;
+  }
+  return fieldErrors;
 }
 
 async function request<T>(
@@ -67,7 +123,11 @@ async function request<T>(
       typeof data === "object" && data !== null && "error" in data
         ? String((data as { error: unknown }).error)
         : `request failed (${response.status})`;
-    throw new ApiError(response.status, message);
+    const issues =
+      typeof data === "object" && data !== null && "issues" in data && Array.isArray((data as { issues: unknown }).issues)
+        ? (data as { issues: Array<{ path: (string | number)[]; message: string }> }).issues
+        : undefined;
+    throw new ApiError(response.status, message, issues);
   }
   return data as T;
 }
@@ -222,6 +282,10 @@ export function fetchShowcase(): Promise<{ projects: ShowcaseProject[] }> {
   return request("/showcase");
 }
 
+export function fetchShowcaseProject(id: string): Promise<{ project: ShowcaseProject }> {
+  return request(`/showcase/${id}`);
+}
+
 export function reactToShowcase(projectId: string, reactionType: "star" | "like" | "love" | "fire"): Promise<{
   reactions: { star: number; like: number; love: number; fire: number };
   userReactions: string[];
@@ -261,4 +325,26 @@ export function listChatChannels(): Promise<{ channels: ChatChannel[] }> {
 
 export function listLogs(): Promise<{ logs: SystemLogEntry[] }> {
   return request("/logs", { auth: true });
+}
+
+// -- stock ---------------------------------------------------------------------
+
+export function getStockData(): Promise<{ shares: StockShare[]; transactions: StockTransaction[] }> {
+  return request("/stock", { auth: true });
+}
+
+export function addShares(input: {
+  founderEmail: string;
+  sharesCount: number;
+  pricePerShare: number;
+}): Promise<{ ok: boolean }> {
+  return request("/stock/shares", { method: "POST", body: input, auth: true });
+}
+
+export function addStockTransaction(input: {
+  type: "income" | "outcome" | "expense";
+  amount: number;
+  description: string;
+}): Promise<{ ok: boolean; transaction: StockTransaction }> {
+  return request("/stock/transactions", { method: "POST", body: input, auth: true });
 }

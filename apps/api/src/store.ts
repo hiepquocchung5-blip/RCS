@@ -17,6 +17,8 @@ import {
   type Ticket,
   type TicketStatus,
   type UserProfile,
+  type StockShare,
+  type StockTransaction,
 } from "@rcs/shared";
 import { randomBytes } from "node:crypto";
 import { Pool } from "pg";
@@ -50,6 +52,12 @@ export class Store {
   private readonly magicLinks = new Map<string, MagicLink>();
   private readonly mockReactions = new Map<string, Map<string, Set<string>>>();
   private readonly chatMessages = new Map<string, ChatMessage[]>();
+  private readonly mockShares: StockShare[] = [
+    { founderEmail: "filip@risecorestudio.com", sharesCount: 5 },
+    { founderEmail: "shayy@risecorestudio.com", sharesCount: 2 },
+    { founderEmail: "paihtookhant@risecorestudio.com", sharesCount: 1 },
+  ];
+  private readonly mockTransactions: StockTransaction[] = [];
   private ticketCounter = 100;
   private readonly pool?: Pool;
 
@@ -992,5 +1000,93 @@ export class Store {
       this.tickets.set(id, updated);
       return { ok: true, ticket: updated };
     }
+  }
+
+  // -- stock & shares --------------------------------------------------------
+
+  async listStockShares(): Promise<StockShare[]> {
+    if (this.pool) {
+      const res = await this.pool.query<{ founderEmail: string; sharesCount: string }>(
+        `SELECT founder_email as "founderEmail", SUM(shares_count) as "sharesCount" FROM stock_shares GROUP BY founder_email`
+      );
+      return res.rows.map((row) => ({
+        founderEmail: row.founderEmail,
+        sharesCount: Number(row.sharesCount),
+      }));
+    } else {
+      return [...this.mockShares];
+    }
+  }
+
+  async addStockShares(
+    founderEmail: string,
+    sharesCount: number,
+    pricePerShare: number,
+  ): Promise<void> {
+    if (this.pool) {
+      await this.pool.query(
+        `INSERT INTO stock_shares (founder_email, shares_count, price_per_share) VALUES ($1, $2, $3)`,
+        [founderEmail, sharesCount, pricePerShare]
+      );
+    } else {
+      const existing = this.mockShares.find(
+        (s) => s.founderEmail.toLowerCase() === founderEmail.toLowerCase()
+      );
+      if (existing) {
+        existing.sharesCount += sharesCount;
+      } else {
+        this.mockShares.push({ founderEmail, sharesCount });
+      }
+    }
+  }
+
+  async listStockTransactions(): Promise<StockTransaction[]> {
+    if (this.pool) {
+      const res = await this.pool.query<{
+        id: string;
+        type: string;
+        amount: string;
+        description: string;
+        createdBy: string;
+        createdAt: Date;
+      }>(
+        `SELECT id, type, amount, description, created_by as "createdBy", created_at as "createdAt" FROM stock_transactions ORDER BY created_at DESC`
+      );
+      return res.rows.map((row) => ({
+        id: row.id,
+        type: row.type as "income" | "outcome" | "expense",
+        amount: Number(row.amount),
+        description: row.description,
+        createdBy: row.createdBy,
+        createdAt: row.createdAt.toISOString(),
+      }));
+    } else {
+      return [...this.mockTransactions];
+    }
+  }
+
+  async addStockTransaction(
+    type: "income" | "outcome" | "expense",
+    amount: number,
+    description: string,
+    createdBy: string,
+  ): Promise<StockTransaction> {
+    const entry: StockTransaction = {
+      id: randomUUID(),
+      type,
+      amount,
+      description,
+      createdBy,
+      createdAt: new Date().toISOString(),
+    };
+    if (this.pool) {
+      await this.pool.query(
+        `INSERT INTO stock_transactions (id, type, amount, description, created_by, created_at) VALUES ($1, $2, $3, $4, $5, $6)`,
+        [entry.id, entry.type, entry.amount, entry.description, entry.createdBy, entry.createdAt]
+      );
+    } else {
+      this.mockTransactions.unshift(entry);
+    }
+    return entry;
   }
 }

@@ -370,6 +370,7 @@ function CreateProjectForm({ onCreated }: { onCreated(project: Project): void })
     { role: "backend", skillLevel: "senior", count: 1 },
   ]);
   const [busy, setBusy] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const { toast } = useToast();
 
   function updateRow(index: number, patch: Partial<ResourceRequirement>): void {
@@ -381,6 +382,7 @@ function CreateProjectForm({ onCreated }: { onCreated(project: Project): void })
   async function onSubmit(event: FormEvent): Promise<void> {
     event.preventDefault();
     setBusy(true);
+    setErrors({});
     try {
       const result = await createProject({
         name,
@@ -393,7 +395,17 @@ function CreateProjectForm({ onCreated }: { onCreated(project: Project): void })
       });
       onCreated(result.project);
     } catch (error) {
-      toast("error", error instanceof Error ? error.message : "create failed");
+      if (error instanceof ApiError && error.issues) {
+        const fieldErrors: Record<string, string> = {};
+        for (const issue of error.issues) {
+          const path = issue.path.join(".");
+          fieldErrors[path] = issue.message;
+        }
+        setErrors(fieldErrors);
+        toast("error", "Please fix the validation errors below.");
+      } else {
+        toast("error", error instanceof Error ? error.message : "create failed");
+      }
     } finally {
       setBusy(false);
     }
@@ -411,6 +423,7 @@ function CreateProjectForm({ onCreated }: { onCreated(project: Project): void })
         <label className="flex flex-col gap-1 text-xs text-rise-muted">
           Project name
           <input required value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
+          {errors.name && <span className="text-xs text-rise-error">{errors.name}</span>}
         </label>
         <label className="flex flex-col gap-1 text-xs text-rise-muted">
           Type
@@ -421,16 +434,19 @@ function CreateProjectForm({ onCreated }: { onCreated(project: Project): void })
               </option>
             ))}
           </select>
+          {errors.type && <span className="text-xs text-rise-error">{errors.type}</span>}
         </label>
       </div>
       <label className="flex flex-col gap-1 text-xs text-rise-muted">
         Description
         <input required value={description} onChange={(e) => setDescription(e.target.value)} className={inputClass} />
+        {errors.description && <span className="text-xs text-rise-error">{errors.description}</span>}
       </label>
       <div className="grid gap-3 sm:grid-cols-3">
         <label className="flex flex-col gap-1 text-xs text-rise-muted">
           Client or organisation
           <input value={clientName} onChange={(e) => setClientName(e.target.value)} className={inputClass} />
+          {errors.clientName && <span className="text-xs text-rise-error">{errors.clientName}</span>}
         </label>
         <label className="flex flex-col gap-1 text-xs text-rise-muted">
           Technology (comma-separated)
@@ -440,6 +456,7 @@ function CreateProjectForm({ onCreated }: { onCreated(project: Project): void })
             placeholder="Next.js, PostgreSQL"
             className={inputClass}
           />
+          {errors.techStack && <span className="text-xs text-rise-error">{errors.techStack}</span>}
         </label>
         <label className="flex items-center gap-2 self-end pb-1.5 text-xs text-rise-muted">
           <input
@@ -449,6 +466,7 @@ function CreateProjectForm({ onCreated }: { onCreated(project: Project): void })
             className="accent-current"
           />
           Include in the public showcase
+          {errors.isPublic && <span className="text-xs text-rise-error">{errors.isPublic}</span>}
         </label>
       </div>
 

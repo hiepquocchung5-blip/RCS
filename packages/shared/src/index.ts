@@ -331,3 +331,31 @@ export function parseChatServerMessage(raw: string): ChatServerMessage | null {
   }
   return null;
 }
+
+// ---------------------------------------------------------------------------
+// Stock & Shares
+// ---------------------------------------------------------------------------
+
+export const STOCK_FOUNDERS = [
+  "filip@risecorestudio.com",
+  "shayy@risecorestudio.com",
+  "paihtookhant@risecorestudio.com",
+] as const;
+
+export function isStockFounder(email: string): boolean {
+  return (STOCK_FOUNDERS as readonly string[]).includes(email.toLowerCase());
+}
+
+export interface StockShare {
+  founderEmail: string;
+  sharesCount: number;
+}
+
+export interface StockTransaction {
+  id: string;
+  type: "income" | "outcome" | "expense";
+  amount: number;
+  description: string;
+  createdBy: string;
+  createdAt: string;
+}

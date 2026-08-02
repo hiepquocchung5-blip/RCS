@@ -62,6 +62,15 @@ RCS_ADMIN_PASSWORD=<exactly-16-characters>
 RCS_FOUNDERS=Filip:filip@risecorestudio.com,Shayy:shayy@risecorestudio.com,Pai Htoo Khant:paihtookhant@risecorestudio.com
 REDIS_URL=redis://127.0.0.1:6379
 DATABASE_URL=postgres://rcs_app:<password>@127.0.0.1:5432/rcs_production
+
+# SMTP configuration for verification OTP and credentials delivery
+RCS_SMTP_HOST=127.0.0.1
+RCS_SMTP_PORT=25
+RCS_SMTP_FROM=no-reply@risecorestudio.com
+# (Optional) If using remote SMTP relay:
+# RCS_SMTP_USER=<user>
+# RCS_SMTP_PASS=<pass>
+# RCS_SMTP_SECURE=false
 ```
 
 ```bash
@@ -129,6 +138,55 @@ sudo -u RCS_user pm2 restart rcs-api rcs-web --update-env
 Never restart production from a build whose typecheck or tests failed.
 
 Record `git rev-parse HEAD` before every update. Roll back by checking out that revision, rebuilding and restarting both services.
+
+## Docker Deployment (Alternative/Recommended)
+
+Instead of managing PM2 and manual services on the host, you can deploy using Docker and Docker Compose. This containerizes the API, Web app, PostgreSQL database, and Redis.
+
+### 1. Install Docker on the VPS
+Connect to the VPS and run:
+```bash
+# Install Docker and Docker Compose
+curl -fsSL https://get.docker.com | sh
+
+# Add the deploy user to the docker group so sudo isn't required
+sudo usermod -aG docker rcs
+```
+
+### 2. Configure Environment
+Create `/opt/rcs/.env` on the VPS. It will be loaded by Docker Compose automatically:
+```dotenv
+NODE_ENV=production
+RCS_JWT_SECRET=<openssl-rand-hex-32>
+RCS_GITHUB_WEBHOOK_SECRET=<openssl-rand-hex-32>
+RCS_ADMIN_EMAIL=<admin-email>
+RCS_ADMIN_PASSWORD=<exactly-16-characters>
+RCS_FOUNDERS=Filip:filip@risecorestudio.com,Shayy:shayy@risecorestudio.com,Pai Htoo Khant:paihtookhant@risecorestudio.com
+DATABASE_PASSWORD=<strong-random-db-password>
+```
+
+### 3. Deploy
+```bash
+cd /opt/rcs
+docker compose up -d --build
+```
+Database migrations will automatically run inside the `rcs-api` container on boot before starting the Express API.
+
+---
+
+## CI/CD Pipeline
+
+A GitHub Actions workflow is configured in `.github/workflows/deploy.yml`. On every push to the `main` branch, it runs:
+1. `npm run typecheck`
+2. `npm run test`
+3. Connects to the VPS via SSH to pull the latest commit and runs `docker compose up -d --build`.
+
+To enable this, configure the following secrets in your GitHub repository (`Settings -> Secrets and variables -> Actions`):
+* `VPS_SSH_HOST`: The IP address of your VPS (`198.177.123.151`).
+* `VPS_SSH_USER`: The deployment user (`rcs`).
+* `VPS_SSH_KEY`: The contents of the private SSH key corresponding to the public key in `authorized_keys`.
+
+---
 
 ## Staging on the same VPS (recommended)
 

@@ -213,6 +213,7 @@ function CreateTicketForm({
   const [assigneeRole, setAssigneeRole] = useState<Role>("frontend");
   const [projectId, setProjectId] = useState("");
   const [busy, setBusy] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const { toast } = useToast();
 
   return (
@@ -221,11 +222,22 @@ function CreateTicketForm({
       onSubmit={(event) => {
         event.preventDefault();
         setBusy(true);
+        setErrors({});
         createTicket({ title, description, assigneeRole, projectId })
           .then((result) => onCreated(result.ticket))
-          .catch((error: unknown) =>
-            toast("error", error instanceof Error ? error.message : "create failed"),
-          )
+          .catch((error: unknown) => {
+            if (error instanceof ApiError && error.issues) {
+              const fieldErrors: Record<string, string> = {};
+              for (const issue of error.issues) {
+                const path = issue.path.join(".");
+                fieldErrors[path] = issue.message;
+              }
+              setErrors(fieldErrors);
+              toast("error", "Please fix the validation errors below.");
+            } else {
+              toast("error", error instanceof Error ? error.message : "create failed");
+            }
+          })
           .finally(() => setBusy(false));
       }}
     >
@@ -237,6 +249,7 @@ function CreateTicketForm({
           onChange={(event) => setTitle(event.target.value)}
           className="rounded border border-rise-border bg-rise-bg px-2 py-1.5 text-sm text-rise-text outline-none focus:border-rise-accent"
         />
+        {errors.title && <span className="text-xs text-rise-error">{errors.title}</span>}
       </label>
       <label className="flex min-w-48 flex-1 flex-col gap-1 text-xs text-rise-muted">
         Description
@@ -246,6 +259,7 @@ function CreateTicketForm({
           onChange={(event) => setDescription(event.target.value)}
           className="rounded border border-rise-border bg-rise-bg px-2 py-1.5 text-sm text-rise-text outline-none focus:border-rise-accent"
         />
+        {errors.description && <span className="text-xs text-rise-error">{errors.description}</span>}
       </label>
       <label className="flex flex-col gap-1 text-xs text-rise-muted">
         Assignee role
@@ -260,16 +274,18 @@ function CreateTicketForm({
             </option>
           ))}
         </select>
+        {errors.assigneeRole && <span className="text-xs text-rise-error">{errors.assigneeRole}</span>}
       </label>
       <label className="flex flex-col gap-1 text-xs text-rise-muted">
-        Project
+        Project ID (UUID)
         <input
           required
-          placeholder="e.g. payvia"
+          placeholder="e.g. project-uuid"
           value={projectId}
           onChange={(event) => setProjectId(event.target.value)}
           className="rounded border border-rise-border bg-rise-bg px-2 py-1.5 text-sm text-rise-text outline-none focus:border-rise-accent"
         />
+        {errors.projectId && <span className="text-xs text-rise-error">{errors.projectId}</span>}
       </label>
       <div className="flex items-end gap-2">
         <button

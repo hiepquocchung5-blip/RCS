@@ -12,7 +12,8 @@ try {
   const migrations = [
     "001_initial.sql",
     "002_add_project_links_and_reactions.sql",
-    "003_chat_messages.sql"
+    "003_chat_messages.sql",
+    "004_stock_tables.sql"
   ];
 
   for (const migrationName of migrations) {

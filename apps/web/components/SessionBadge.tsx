@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { clearSession, loadSession, type Session } from "@/lib/session";
+import { getAuthUrl, getHomeUrl } from "@/lib/api";
 
 export function SessionBadge() {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
@@ -24,12 +24,12 @@ export function SessionBadge() {
 
   if (session === null) {
     return (
-      <Link
-        href="/login"
+      <a
+        href={getAuthUrl("/login")}
         className="whitespace-nowrap rounded-full bg-rise-accent px-4 py-1.5 text-sm font-semibold text-rise-bg transition-transform hover:scale-105"
       >
         Dev Hub
-      </Link>
+      </a>
     );
   }
 
@@ -47,7 +47,7 @@ export function SessionBadge() {
         onClick={() => {
           clearSession();
           window.dispatchEvent(new Event("rcs:session"));
-          window.location.assign("/");
+          window.location.assign(getHomeUrl());
         }}
       >
         Log out

@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import Link from "next/link";
 import "./globals.css";
 import { ToastProvider } from "@/components/ToastProvider";
 import { SessionBadge } from "@/components/SessionBadge";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { PortalNavigation } from "@/components/PortalNavigation";
+import { getHomeUrl } from "@/lib/api";
 
 export const metadata: Metadata = {
   title: "RCS — RiseCoreStudio",
@@ -24,14 +24,14 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
         <ToastProvider>
           <header className="flex min-h-14 shrink-0 items-center gap-2 border-b border-rise-border bg-rise-surface px-3 sm:gap-5 sm:px-5">
-            <Link href="/" aria-label="RiseCoreStudio home" className="flex shrink-0 items-center gap-2">
+            <a href={getHomeUrl()} aria-label="RiseCoreStudio home" className="flex shrink-0 items-center gap-2">
               <span className="text-lg font-bold tracking-tight text-rise-accent">
                 ▲ RCS
               </span>
               <span className="hidden text-xs text-rise-muted sm:inline">
                 RiseCoreStudio
               </span>
-            </Link>
+            </a>
             <div className="min-w-0 flex-1"><PortalNavigation /></div>
             <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
               <ThemeToggle />

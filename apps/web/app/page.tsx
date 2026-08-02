@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getAuthUrl } from "@/lib/api";
 
 // Keep the public entry shell synchronized with the currently deployed asset
 // manifest. This avoids a cached HTML document referencing retired JS/CSS
@@ -55,9 +56,9 @@ export default function HomePage() {
           into thoughtful, scalable software—and keeps every stage of delivery visible.
         </p>
         <div className="fade-up fade-up-3 mt-10 flex flex-wrap items-center justify-center gap-4">
-          <Link href="/request" className="rounded-full bg-rise-accent px-7 py-3 text-sm font-semibold text-rise-bg transition-transform hover:scale-105">
+          <a href={getAuthUrl("/request")} className="rounded-full bg-rise-accent px-7 py-3 text-sm font-semibold text-rise-bg transition-transform hover:scale-105">
             Start a project
-          </Link>
+          </a>
           <Link href="/showcase" className="rounded-full border border-rise-border px-7 py-3 text-sm transition-colors hover:border-rise-accent hover:text-rise-accent">
             Explore our work
           </Link>
@@ -108,9 +109,9 @@ export default function HomePage() {
         <p className="mt-5 max-w-xl text-sm leading-relaxed text-rise-muted">
           Share the challenge, timeline and context. We’ll review your brief and respond with a practical next step.
         </p>
-        <Link href="/request" className="mt-8 rounded-full bg-rise-accent px-7 py-3 text-sm font-semibold text-rise-bg transition-transform hover:scale-105">
+        <a href={getAuthUrl("/request")} className="mt-8 rounded-full bg-rise-accent px-7 py-3 text-sm font-semibold text-rise-bg transition-transform hover:scale-105">
           Tell us about your project
-        </Link>
+        </a>
       </section>
     </div>
   );

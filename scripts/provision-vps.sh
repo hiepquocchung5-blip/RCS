@@ -38,7 +38,16 @@ chown -R "${DEPLOY_USER}:${DEPLOY_USER}" "/home/${DEPLOY_USER}/.ssh"
 echo "==> [2/6] system packages"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-apt-get install -y -qq nginx redis-server postgresql certbot python3-certbot-nginx ufw git curl
+
+# Pre-seed Postfix configuration for non-interactive installation
+echo "postfix postfix/mailname string risecorestudio.com" | debconf-set-selections
+echo "postfix postfix/main_mailer_type string 'Internet Site'" | debconf-set-selections
+
+apt-get install -y -qq nginx redis-server postgresql certbot python3-certbot-nginx ufw git curl postfix
+
+# Harden Postfix to only accept loopback traffic (preventing open relay vulnerabilities)
+postconf -e "inet_interfaces = 127.0.0.1"
+systemctl restart postfix
 
 echo "==> [3/6] Node.js 22 + pm2"
 if ! command -v node >/dev/null 2>&1; then
@@ -51,9 +60,12 @@ echo "==> [4/6] app directory ${APP_DIR}"
 mkdir -p "${APP_DIR}"
 chown "${DEPLOY_USER}:${DEPLOY_USER}" "${APP_DIR}"
 
-echo "==> [5/6] firewall (OpenSSH + nginx only)"
+echo "==> [5/6] firewall (OpenSSH + nginx + outline vpn)"
 ufw allow OpenSSH >/dev/null
 ufw allow 'Nginx Full' >/dev/null
+ufw allow 50676/tcp >/dev/null
+ufw allow 10866/tcp >/dev/null
+ufw allow 10866/udp >/dev/null
 ufw --force enable >/dev/null
 
 echo "==> [6/6] services"

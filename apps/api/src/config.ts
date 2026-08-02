@@ -25,6 +25,12 @@ export interface ApiConfig {
    */
   loginRedirectUrl: string | null;
   isProduction: boolean;
+  smtpHost: string | null;
+  smtpPort: number;
+  smtpUser: string | null;
+  smtpPass: string | null;
+  smtpSecure: boolean;
+  smtpFrom: string;
 }
 
 export function loadConfig(): ApiConfig {
@@ -49,5 +55,11 @@ export function loadConfig(): ApiConfig {
     trustedDomain: process.env.RCS_TRUSTED_DOMAIN ?? null,
     loginRedirectUrl: process.env.RCS_LOGIN_REDIRECT_URL ?? null,
     isProduction,
+    smtpHost: process.env.RCS_SMTP_HOST ?? null,
+    smtpPort: Number(process.env.RCS_SMTP_PORT ?? 25),
+    smtpUser: process.env.RCS_SMTP_USER ?? null,
+    smtpPass: process.env.RCS_SMTP_PASS ?? null,
+    smtpSecure: process.env.RCS_SMTP_SECURE === "true",
+    smtpFrom: process.env.RCS_SMTP_FROM ?? "no-reply@risecorestudio.com",
   };
 }

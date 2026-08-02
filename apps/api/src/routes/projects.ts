@@ -1,42 +1,15 @@
 import { Router, type Response } from "express";
-import {
-  isProjectType,
-  isRole,
-  isSkillLevel,
-  type ResourceRequirement,
-} from "@rcs/shared";
 import type { ApiConfig } from "../config.js";
 import type { Store } from "../store.js";
 import { requireAuth, requireRole, type AuthedRequest } from "../middleware.js";
-import { milestoneSchema, projectDeliverySchema, validationError } from "../schemas.js";
-
-function parseMatrix(value: unknown): ResourceRequirement[] | null {
-  if (!Array.isArray(value)) return null;
-  const matrix: ResourceRequirement[] = [];
-  for (const entry of value) {
-    if (typeof entry !== "object" || entry === null) return null;
-    const row = entry as Record<string, unknown>;
-    const role = row["role"];
-    const skillLevel = row["skillLevel"];
-    const count = row["count"];
-    if (
-      typeof role !== "string" ||
-      !isRole(role) ||
-      role === "admin" ||
-      role === "pm" ||
-      typeof skillLevel !== "string" ||
-      !isSkillLevel(skillLevel) ||
-      typeof count !== "number" ||
-      !Number.isInteger(count) ||
-      count < 1 ||
-      count > 20
-    ) {
-      return null;
-    }
-    matrix.push({ role, skillLevel, count });
-  }
-  return matrix;
-}
+import {
+  milestoneSchema,
+  projectDeliverySchema,
+  createProjectSchema,
+  assignTeamMemberSchema,
+  updateTechStackSchema,
+  validationError,
+} from "../schemas.js";
 
 export function projectRoutes(config: ApiConfig, store: Store): Router {
   const router = Router();
@@ -87,43 +60,25 @@ export function projectRoutes(config: ApiConfig, store: Store): Router {
     "/",
     requireRole("admin", "pm"),
     async (req: AuthedRequest, res: Response) => {
-      const body = req.body as Record<string, unknown>;
-      const name = body["name"];
-      const type = body["type"];
-      const description = body["description"];
-      const clientName = body["clientName"];
-      const isPublic = body["isPublic"];
-      const techStack = body["techStack"];
-      const matrix = parseMatrix(body["resourceMatrix"] ?? []);
-      if (
-        typeof name !== "string" ||
-        name.trim().length === 0 ||
-        typeof type !== "string" ||
-        !isProjectType(type) ||
-        typeof description !== "string" ||
-        matrix === null ||
-        !Array.isArray(techStack) ||
-        !techStack.every((t): t is string => typeof t === "string")
-      ) {
-        res.status(400).json({
-          error:
-            "name, type, description, techStack[] and a valid resourceMatrix are required",
-        });
+      const parsed = createProjectSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json(validationError(parsed.error));
         return;
       }
+      const { name, type, description, clientName, isPublic, techStack, resourceMatrix } = parsed.data;
       const project = await store.createProject({
-        name: name.trim(),
+        name,
         type,
         description,
-        clientName: typeof clientName === "string" ? clientName : "",
-        isPublic: isPublic === true,
+        clientName,
+        isPublic,
         techStack,
-        resourceMatrix: matrix,
+        resourceMatrix,
       });
       await store.log(
         "user",
         "project_created",
-        `${req.session?.email ?? "unknown"} scoped project "${project.name}" (${project.type}) with ${matrix.length} matrix rows`,
+        `${req.session?.email ?? "unknown"} scoped project "${project.name}" (${project.type}) with ${resourceMatrix.length} matrix rows`,
       );
       res.status(201).json({ project });
     },
@@ -188,12 +143,12 @@ export function projectRoutes(config: ApiConfig, store: Store): Router {
     requireRole("admin", "pm"),
     async (req: AuthedRequest, res: Response) => {
       const id = req.params.id;
-      const body = req.body as Record<string, unknown>;
-      const userId = body["userId"];
-      if (id === undefined || typeof userId !== "string") {
-        res.status(400).json({ error: "project id and userId are required" });
+      const parsed = assignTeamMemberSchema.safeParse(req.body);
+      if (id === undefined || !parsed.success) {
+        res.status(400).json(parsed.success ? { error: "project id required" } : validationError(parsed.error));
         return;
       }
+      const { userId } = parsed.data;
       const result = await store.assignTeamMember(id, userId);
       if (!result.ok) {
         res.status(409).json({ error: result.error });
@@ -213,13 +168,12 @@ export function projectRoutes(config: ApiConfig, store: Store): Router {
   router.post("/:id/tech", async (req: AuthedRequest, res: Response) => {
     const id = req.params.id;
     const session = req.session;
-    const body = req.body as Record<string, unknown>;
-    const add = typeof body["add"] === "string" ? body["add"] : undefined;
-    const remove = typeof body["remove"] === "string" ? body["remove"] : undefined;
-    if (id === undefined || session === undefined || (add === undefined && remove === undefined)) {
-      res.status(400).json({ error: "project id and add or remove are required" });
+    const parsed = updateTechStackSchema.safeParse(req.body);
+    if (id === undefined || session === undefined || !parsed.success) {
+      res.status(400).json(parsed.success ? { error: "project id and session required" } : validationError(parsed.error));
       return;
     }
+    const { add, remove } = parsed.data;
     const project = await store.getProject(id);
     if (project === undefined) {
       res.status(404).json({ error: "project not found" });

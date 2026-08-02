@@ -5,6 +5,7 @@ import { signSessionToken } from "../auth/tokens.js";
 import type { Store } from "../store.js";
 import { rateLimit } from "../middleware/rate-limit.js";
 import { applicationSchema, loginSchema, otpSchema, validationError } from "../schemas.js";
+import { Mailer } from "../mail.js";
 
 import { Redis } from "ioredis";
 
@@ -16,6 +17,7 @@ export function authRoutes(
   config: ApiConfig,
   store: Store,
   otpStore: OtpStore,
+  mailer: Mailer,
   redisClient?: Redis | null,
 ): Router {
   const router = Router();
@@ -75,6 +77,16 @@ export function authRoutes(
     );
     if (!config.isProduction) {
       console.log(`[onboarding-agent] DEV OTP for ${email}: ${otp}`);
+    }
+    try {
+      await mailer.sendMail({
+        to: email,
+        subject: "RCS Onboarding — Verify your email",
+        text: `Hello ${name},\n\nYour OTP is ${otp}. It expires in exactly 5 minutes.\n\nBest regards,\nRiseCoreStudio Onboarding Agent`,
+        html: `<p>Hello <strong>${name}</strong>,</p><p>Your OTP is <strong>${otp}</strong>. It expires in exactly 5 minutes.</p><p>Best regards,<br>RiseCoreStudio Onboarding Agent</p>`,
+      });
+    } catch (mailError: unknown) {
+      console.error("[onboarding-agent] Failed to send OTP email:", mailError);
     }
     res.status(201).json({ applicationId: application.id });
   });

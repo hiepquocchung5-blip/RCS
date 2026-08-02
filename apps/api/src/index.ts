@@ -12,16 +12,19 @@ import { ticketRoutes } from "./routes/tickets.js";
 import { projectRoutes } from "./routes/projects.js";
 import { orderRoutes } from "./routes/orders.js";
 import { webhookRoutes } from "./routes/webhooks.js";
+import { stockRoutes } from "./routes/stock.js";
 import { requireAuth, requireRole, errorHandler } from "./middleware.js";
 import { rateLimit } from "./middleware/rate-limit.js";
 import { verifyToken } from "./auth/tokens.js";
 import { attachChat, chatRoutes } from "./chat.js";
 import { metrics, requestContext } from "./observability.js";
+import { createMailer } from "./mail.js";
 
 const config = loadConfig();
 const store = new Store(config.jwtSecret, config.databaseUrl);
 const redisClient = config.redisUrl ? new Redis(config.redisUrl) : null;
 const otpStore = createOtpStore(config.redisUrl);
+const mailer = createMailer(config);
 
 await store.init();
 
@@ -197,11 +200,12 @@ app.get("/metrics", (_req, res) => {
   res.type("text/plain; version=0.0.4").send(metrics());
 });
 
-app.use("/auth", authRoutes(config, store, otpStore, redisClient));
-app.use("/admin", adminRoutes(config, store));
+app.use("/auth", authRoutes(config, store, otpStore, mailer, redisClient));
+app.use("/admin", adminRoutes(config, store, mailer));
 app.use("/tickets", ticketRoutes(config, store));
 app.use("/projects", projectRoutes(config, store));
 app.use("/orders", orderRoutes(config, store));
+app.use("/stock", stockRoutes(config, store));
 app.use("/chat", chatRoutes(config, store));
 app.use("/webhooks", webhookRoutes(config, store, redisClient));
 
@@ -220,6 +224,31 @@ app.get("/showcase", async (req, res) => {
   }
   
   res.json({ projects: await store.listShowcase(sessionOrGuestId || null) });
+});
+
+app.get("/showcase/:id", async (req, res) => {
+  const projectId = req.params.id;
+  if (!projectId) {
+    res.status(400).json({ error: "project id required" });
+    return;
+  }
+  let sessionOrGuestId = req.headers["x-guest-session"] as string | undefined;
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    try {
+      const claims = verifyToken(config.jwtSecret, authHeader.substring(7), "session");
+      if (claims) sessionOrGuestId = claims.sub;
+    } catch {
+      // Ignore token verification errors
+    }
+  }
+  const showcaseList = await store.listShowcase(sessionOrGuestId || null);
+  const found = showcaseList.find(p => p.id === projectId);
+  if (!found) {
+    res.status(404).json({ error: "showcase project not found" });
+    return;
+  }
+  res.json({ project: found });
 });
 
 // Reactions are guest-writable, so cap them per IP; counts stay approximate.
