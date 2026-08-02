@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <linearGradient id="emeraldGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#059669" />
+      <stop offset="50%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#34d399" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24" />
+      <stop offset="100%" stop-color="#d97706" />
+    </linearGradient>
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="12" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+  
+  <!-- Background Shield/Circle -->
+  <rect width="512" height="512" rx="112" fill="#090d16" />
+  
+  <!-- Outer Glowing Ring -->
+  <circle cx="256" cy="256" r="210" fill="none" stroke="url(#goldGrad)" stroke-width="4" opacity="0.35" filter="url(#glow)" />
+  <circle cx="256" cy="256" r="200" fill="none" stroke="url(#emeraldGrad)" stroke-width="6" opacity="0.8" />
+  
+  <!-- Main Chevron Triangle Core -->
+  <g filter="url(#glow)">
+    <!-- Left Wing -->
+    <path d="M 256 96 L 112 376 L 180 376 L 256 220 Z" fill="url(#emeraldGrad)" />
+    <!-- Right Wing -->
+    <path d="M 256 96 L 400 376 L 332 376 L 256 220 Z" fill="url(#emeraldGrad)" opacity="0.9" />
+    <!-- Inner Gold Core Chevron -->
+    <path d="M 256 160 L 160 340 L 204 340 L 256 240 L 308 340 L 352 340 Z" fill="url(#goldGrad)" opacity="0.95" />
+  </g>
+</svg>

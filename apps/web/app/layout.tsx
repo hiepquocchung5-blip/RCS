@@ -37,7 +37,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <ToastProvider>
           <header className="flex min-h-14 shrink-0 items-center gap-2 border-b border-rise-border bg-rise-surface px-3 sm:gap-5 sm:px-5">
             <a href={getHomeUrl()} aria-label="RiseCoreStudio home" className="flex shrink-0 items-center gap-2.5">
-              <img src="/rcslogo.png" alt="RiseCoreStudio logo" className="h-7 w-7 rounded-lg object-contain border border-rise-border/50" />
+              <img src="/rcslogo.svg" alt="RiseCoreStudio logo" className="h-7 w-7 rounded-lg object-contain" />
               <span className="font-bold tracking-tight text-rise-accent font-display text-base">
                 RCS
               </span>
