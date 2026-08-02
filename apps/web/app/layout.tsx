@@ -19,7 +19,7 @@ export const viewport: Viewport = {
 
 const THEME_BOOT = `try{if(localStorage.getItem("rcs.theme")==="light")document.documentElement.classList.add("light")}catch(e){}`;
 const SW_REGISTER = `if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').catch(function(){});});}`;
-const TMA_BOOT = `try{if(window.Telegram&&window.Telegram.WebApp){window.Telegram.WebApp.ready();window.Telegram.WebApp.expand();}}catch(e){}`;
+const TMA_BOOT = `try{if(window.Telegram&&window.Telegram.WebApp){var app=window.Telegram.WebApp;app.ready();app.expand();app.setHeaderColor('#0c1322');app.setBackgroundColor('#0c1322');}}catch(e){}`;
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (

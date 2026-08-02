@@ -12,6 +12,7 @@ export interface ApiConfig {
   /** PostgreSQL connection for entity storage; null = in-memory dev fallback. */
   databaseUrl: string | null;
   githubWebhookSecret: string | null;
+  telegramWebhookSecret: string | null;
   /** Browser origins allowed by CORS (comma-separated in RCS_WEB_ORIGIN). */
   webOrigins: string[];
   /**
@@ -48,6 +49,7 @@ export function loadConfig(): ApiConfig {
     redisUrl: process.env.REDIS_URL ?? null,
     databaseUrl: process.env.DATABASE_URL ?? null,
     githubWebhookSecret: process.env.RCS_GITHUB_WEBHOOK_SECRET ?? null,
+    telegramWebhookSecret: process.env.TELEGRAM_WEBHOOK_SECRET ?? null,
     webOrigins: (process.env.RCS_WEB_ORIGIN ?? "http://localhost:3000")
       .split(",")
       .map((origin) => origin.trim())

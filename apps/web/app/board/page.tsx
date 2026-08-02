@@ -128,20 +128,26 @@ export default function BoardPage() {
           </button>
         )}
       </div>
-      {/* Developer XP & Leaderboard Section */}
+      {/* Developer XP & Leaderboard Section with Sprint Velocity */}
       <section className="rounded-xl border border-rise-border bg-rise-surface p-5 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-rise-border/40 pb-3">
           <div>
             <h2 className="font-mono text-xs uppercase tracking-widest text-rise-accent">
-              Agency Leaderboard & Skill XP
+              Agency Leaderboard & Sprint Velocity
             </h2>
             <p className="mt-0.5 text-xs text-rise-muted">
               Monthly developer velocity, ticket completions, and skill rank progression.
             </p>
           </div>
-          <span className="rounded-full bg-rise-gold/10 border border-rise-gold/30 px-3 py-1 font-mono text-xs text-rise-gold">
-            🏆 Active Season 1
-          </span>
+          <div className="flex items-center gap-3">
+            <div className="font-mono text-xs text-right">
+              <span className="text-rise-muted">Sprint Target: </span>
+              <span className="font-bold text-rise-success">42 / 50 Story Points (84%)</span>
+            </div>
+            <span className="rounded-full bg-rise-gold/10 border border-rise-gold/30 px-3 py-1 font-mono text-xs text-rise-gold">
+              🏆 Active Season 1
+            </span>
+          </div>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-3">
@@ -236,7 +242,7 @@ export default function BoardPage() {
                     className={`cursor-grab rounded-lg border border-rise-border border-l-2 bg-rise-surface-2 p-3 shadow-sm transition-transform hover:-translate-y-0.5 ${STATUS_ACCENT[status]}`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="font-mono text-xs text-rise-accent">
+                      <span className="font-mono text-xs text-rise-accent font-semibold">
                         {ticket.ref}
                       </span>
                       <span className="rounded bg-rise-bg px-1.5 py-0.5 text-[10px] uppercase text-rise-muted">
@@ -247,6 +253,22 @@ export default function BoardPage() {
                     {ticket.description.length > 0 && (
                       <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-rise-muted">{ticket.description}</p>
                     )}
+
+                    {/* Quick Review / Move Action Button */}
+                    <div className="mt-3 pt-2 border-t border-rise-border/40 flex items-center justify-between text-xs">
+                      {ticket.status !== "complete" && (
+                        <button
+                          type="button"
+                          onClick={() => void moveTicket(ticket, TICKET_NEXT_STATUS[ticket.status]!)}
+                          className="rounded bg-rise-accent/15 border border-rise-accent/30 px-2 py-0.5 text-[11px] font-mono text-rise-accent hover:bg-rise-accent hover:text-rise-bg transition-colors"
+                        >
+                          Move → {COLUMN_LABELS[TICKET_NEXT_STATUS[ticket.status]!]}
+                        </button>
+                      )}
+                      {ticket.status === "complete" && (
+                        <span className="font-mono text-[10px] text-rise-success font-semibold">✓ COMPLETE</span>
+                      )}
+                    </div>
                   </div>
                 ))}
             </div>

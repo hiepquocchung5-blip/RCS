@@ -152,8 +152,7 @@ if (process.env.RCS_SEED_DEMO === "true") {
 function isAllowedOrigin(origin: string): boolean {
   if (!origin) return true;
   if (config.webOrigins.includes(origin)) return true;
-  if (origin.includes("risecorestudio.com")) return true;
-  if (config.trustedDomain === null) return true;
+  if (config.trustedDomain === null) return false;
   try {
     const url = new URL(origin);
     const host = url.hostname.toLowerCase();
@@ -169,9 +168,7 @@ app.use(cors({
   origin: (origin, callback) => {
     if (!origin || isAllowedOrigin(origin)) {
       callback(null, true);
-    } else {
-      callback(null, true); // Permissive CORS for trusted subdomains
-    }
+    } else callback(new Error("Origin is not allowed by RCS CORS policy"));
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
@@ -188,20 +185,34 @@ app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "rcs-api" });
 });
 app.get("/ready", async (_req, res) => {
-  let dbStatus = "memory";
-  if (config.databaseUrl !== null) {
-    try {
-      await store.log("api", "healthcheck", "Database healthcheck query executed");
-      dbStatus = "postgres";
+  let dbStatus: "memory" | "postgres";
+  try {
+      dbStatus = await store.ping();
     } catch {
       res.status(503).json({ ok: false, error: "Database not ready" });
       return;
-    }
   }
   res.json({ ok: true, storage: dbStatus, otp: config.redisUrl === null ? "memory" : "redis" });
 });
 app.get("/metrics", (_req, res) => {
   res.type("text/plain; version=0.0.4").send(metrics());
+});
+
+app.get("/operations/status", requireAuth(config.jwtSecret), requireRole("admin", "pm"), async (_req, res) => {
+  const memory = process.memoryUsage();
+  let storage: "postgres" | "memory" | "unavailable" = "unavailable";
+  try { storage = await store.ping(); } catch { /* surfaced in response */ }
+  res.json({
+    generatedAt: new Date().toISOString(),
+    api: { status: "online", uptimeSeconds: Math.floor(process.uptime()), memoryRssBytes: memory.rss, heapUsedBytes: memory.heapUsed },
+    storage: { status: storage === "unavailable" ? "unavailable" : "online", driver: storage },
+    redis: { status: redisClient === null ? "development-fallback" : redisClient.status },
+    telegram: { configured: Boolean(process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) },
+  });
+});
+
+app.get("/leaderboard", requireAuth(config.jwtSecret), async (_req, res) => {
+  res.json({ season: 1, entries: await store.leaderboard(10) });
 });
 
 app.use("/auth", authRoutes(config, store, otpStore, mailer, redisClient));

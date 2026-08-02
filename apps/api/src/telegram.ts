@@ -1,7 +1,7 @@
 import type { ApiConfig } from "./config.js";
 
 export interface TelegramNotifier {
-  sendMessage(text: string): Promise<boolean>;
+  sendMessage(text: string, targetChatId?: string | number): Promise<boolean>;
 }
 
 export function createTelegramNotifier(config: ApiConfig): TelegramNotifier {
@@ -9,8 +9,9 @@ export function createTelegramNotifier(config: ApiConfig): TelegramNotifier {
   const chatId = process.env.TELEGRAM_CHAT_ID;
 
   return {
-    async sendMessage(text: string): Promise<boolean> {
-      if (!botToken || !chatId) {
+    async sendMessage(text: string, targetChatId?: string | number): Promise<boolean> {
+      const destination = targetChatId ?? chatId;
+      if (!botToken || !destination) {
         // Soft fallback when Telegram credentials are not yet configured in env
         return false;
       }
@@ -20,7 +21,7 @@ export function createTelegramNotifier(config: ApiConfig): TelegramNotifier {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            chat_id: chatId,
+            chat_id: destination,
             text,
             parse_mode: "HTML",
           }),

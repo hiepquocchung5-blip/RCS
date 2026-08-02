@@ -135,6 +135,7 @@ export class Store {
       name: input.name,
       role: input.role,
       skillLevel: input.skillLevel,
+      xp: 0,
       passwordHash: hashPassword(input.password),
       createdAt: new Date().toISOString(),
     };
@@ -223,7 +224,7 @@ export class Store {
   async listUsers(): Promise<readonly UserProfile[]> {
     if (this.pool) {
       const res = await this.pool.query(
-        `SELECT id, email, name, role, skill_level as "skillLevel", created_at as "createdAt" FROM users ORDER BY name ASC`
+        `SELECT id, email, name, role, skill_level as "skillLevel", xp, telegram_username as "telegramUsername", created_at as "createdAt" FROM users ORDER BY name ASC`
       );
       return res.rows.map(r => ({
         ...r,
@@ -231,6 +232,20 @@ export class Store {
       }));
     }
     return [...this.users.values()].map(({ passwordHash: _passwordHash, ...rest }) => rest);
+  }
+
+  async leaderboard(limit = 10): Promise<readonly UserProfile[]> {
+    const users = await this.listUsers();
+    return [...users]
+      .filter((user) => user.role !== "admin" || (user.xp ?? 0) > 0)
+      .sort((a, b) => (b.xp ?? 0) - (a.xp ?? 0) || a.name.localeCompare(b.name))
+      .slice(0, Math.max(1, Math.min(limit, 50)));
+  }
+
+  async ping(): Promise<"postgres" | "memory"> {
+    if (!this.pool) return "memory";
+    await this.pool.query("SELECT 1");
+    return "postgres";
   }
 
   // -- onboarding applications ----------------------------------------------
