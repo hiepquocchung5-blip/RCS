@@ -19,16 +19,21 @@ export const viewport: Viewport = {
 
 const THEME_BOOT = `try{if(localStorage.getItem("rcs.theme")==="light")document.documentElement.classList.add("light")}catch(e){}`;
 const SW_REGISTER = `if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').catch(function(){});});}`;
+const TMA_BOOT = `try{if(window.Telegram&&window.Telegram.WebApp){window.Telegram.WebApp.ready();window.Telegram.WebApp.expand();}}catch(e){}`;
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
+      <head>
+        <script src="https://telegram.org/js/telegram-web-app.js" async />
+      </head>
       <body
         className="flex h-screen flex-col overflow-hidden font-sans antialiased"
         suppressHydrationWarning
       >
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
         <script dangerouslySetInnerHTML={{ __html: SW_REGISTER }} />
+        <script dangerouslySetInnerHTML={{ __html: TMA_BOOT }} />
         <ToastProvider>
           <header className="flex min-h-14 shrink-0 items-center gap-2 border-b border-rise-border bg-rise-surface px-3 sm:gap-5 sm:px-5">
             <a href={getHomeUrl()} aria-label="RiseCoreStudio home" className="flex shrink-0 items-center gap-2">
