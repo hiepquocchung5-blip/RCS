@@ -14,6 +14,7 @@ import { orderRoutes } from "./routes/orders.js";
 import { webhookRoutes } from "./routes/webhooks.js";
 import { stockRoutes } from "./routes/stock.js";
 import { proposalRoutes } from "./routes/proposals.js";
+import { telegramRoutes } from "./routes/telegram.js";
 import { requireAuth, requireRole, errorHandler } from "./middleware.js";
 import { rateLimit } from "./middleware/rate-limit.js";
 import { verifyToken } from "./auth/tokens.js";
@@ -207,7 +208,9 @@ app.use("/tickets", ticketRoutes(config, store));
 app.use("/projects", projectRoutes(config, store));
 app.use("/orders", orderRoutes(config, store));
 app.use("/stock", stockRoutes(config, store));
+app.use("/proposals", proposalRoutes(config, store));
 app.use("/chat", chatRoutes(config, store));
+app.use("/telegram", telegramRoutes(config, store));
 app.use("/webhooks", webhookRoutes(config, store, redisClient));
 
 // Public, client-facing: only is_public projects, client-safe fields.
