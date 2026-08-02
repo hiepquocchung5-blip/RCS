@@ -207,15 +207,41 @@ export default function StockPage() {
       />
 
       <div className="mx-auto max-w-6xl">
-        <header className="mb-10 flex flex-col gap-2">
-          <p className="font-mono text-xs uppercase tracking-[0.4em] text-rise-gold">
-            RCS/Stock Portal
-          </p>
-          <h1 className="font-display text-4xl sm:text-5xl text-rise-text">Stock & Shareholder Ledger</h1>
-          <p className="text-sm text-rise-muted max-w-2xl leading-relaxed">
-            Private ledger for founding shareholders. Track capitalization, share distributions,
-            capital calls, and corporate cash flow details securely.
-          </p>
+        <header className="mb-10 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-col gap-2">
+            <p className="font-mono text-xs uppercase tracking-[0.4em] text-rise-gold">
+              RCS/Stock Portal
+            </p>
+            <h1 className="font-display text-4xl sm:text-5xl text-rise-text">Stock & Shareholder Ledger</h1>
+            <p className="text-sm text-rise-muted max-w-2xl leading-relaxed">
+              Private ledger for founding shareholders. Track capitalization, share distributions,
+              capital calls, and corporate cash flow details securely.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              let csvContent = "data:text/csv;charset=utf-8,Founder,Email,Shares,Percentage,Value (MMK)\n";
+              shares.forEach((item) => {
+                const name = FOUNDER_NAMES[item.founderEmail.toLowerCase()] || item.founderEmail;
+                const percent = totalShares > 0 ? ((item.sharesCount / totalShares) * 100).toFixed(2) : "0";
+                const val = item.sharesCount * 32000;
+                csvContent += `"${name}","${item.founderEmail}",${item.sharesCount},${percent}%,${val}\n`;
+              });
+              const encodedUri = encodeURI(csvContent);
+              const link = document.createElement("a");
+              link.setAttribute("href", encodedUri);
+              link.setAttribute("download", `RCS_Cap_Table_${new Date().toISOString().slice(0, 10)}.csv`);
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+              toast("success", "Cap Table exported to CSV!");
+            }}
+            className="rounded-full border border-rise-gold/40 bg-rise-gold/10 px-4 py-2 text-xs font-semibold text-rise-gold hover:bg-rise-gold hover:text-rise-bg transition-colors shadow-lg"
+          >
+            📊 Export Cap Table (CSV)
+          </button>
         </header>
 
         {/* 1. Dashboard Grid */}

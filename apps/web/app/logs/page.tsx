@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import type { SystemLogEntry } from "@rcs/shared";
-import { ApiError, listLogs } from "@/lib/api";
+import type { OperationsStatus, SystemLogEntry } from "@rcs/shared";
+import { ApiError, getOperationsStatus, listLogs } from "@/lib/api";
 import { loadSession } from "@/lib/session";
 
 const ACTOR_COLORS: Record<string, string> = {
@@ -17,17 +17,21 @@ export default function LogsPage() {
   const [logs, setLogs] = useState<readonly SystemLogEntry[]>([]);
   const [denied, setDenied] = useState(false);
   const [filter, setFilter] = useState<"all" | "info" | "warn" | "error">("all");
+  const [status, setStatus] = useState<OperationsStatus | null>(null);
 
   useEffect(() => {
     if (loadSession() === null) {
       setDenied(true);
       return;
     }
-    listLogs()
-      .then((result) => setLogs(result.logs))
-      .catch((error: unknown) => {
-        if (error instanceof ApiError && error.status === 401) setDenied(true);
-      });
+    const refresh = () => {
+      void Promise.all([listLogs(), getOperationsStatus()])
+        .then(([logResult, statusResult]) => { setLogs(logResult.logs); setStatus(statusResult); })
+        .catch((error: unknown) => { if (error instanceof ApiError && (error.status === 401 || error.status === 403)) setDenied(true); });
+    };
+    refresh();
+    const timer = window.setInterval(refresh, 5000);
+    return () => window.clearInterval(timer);
   }, []);
 
   if (denied) {
@@ -67,8 +71,8 @@ export default function LogsPage() {
             </span>
           </div>
           <div className="flex items-baseline justify-between">
-            <span className="font-mono text-2xl font-bold text-rise-text">54.2 MB</span>
-            <span className="font-mono text-xs text-rise-accent font-medium">CPU 1.2%</span>
+            <span className="font-mono text-2xl font-bold text-rise-text">{status ? `${(status.api.memoryRssBytes / 1048576).toFixed(1)} MB` : "—"}</span>
+            <span className="font-mono text-xs text-rise-accent font-medium">UP {status ? `${Math.floor(status.api.uptimeSeconds / 60)}m` : "—"}</span>
           </div>
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-rise-surface-2">
             <div className="h-full bg-rise-accent w-[28%]" />
@@ -83,8 +87,8 @@ export default function LogsPage() {
             </span>
           </div>
           <div className="flex items-baseline justify-between">
-            <span className="font-mono text-2xl font-bold text-rise-text">780 KB</span>
-            <span className="font-mono text-xs text-rise-accent font-medium">CPU 0.0%</span>
+            <span className="font-mono text-2xl font-bold text-rise-text">{status ? `${(status.api.heapUsedBytes / 1048576).toFixed(1)} MB` : "—"}</span>
+            <span className="font-mono text-xs text-rise-accent font-medium">HEAP USED</span>
           </div>
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-rise-surface-2">
             <div className="h-full bg-emerald-400 w-[12%]" />
@@ -99,8 +103,8 @@ export default function LogsPage() {
             </span>
           </div>
           <div className="flex items-baseline justify-between">
-            <span className="font-mono text-2xl font-bold text-rise-text">6 Migrations</span>
-            <span className="font-mono text-xs text-rise-gold font-medium">100% Synced</span>
+            <span className="font-mono text-2xl font-bold text-rise-text capitalize">{status?.storage.driver ?? "checking"}</span>
+            <span className="font-mono text-xs text-rise-gold font-medium uppercase">{status?.storage.status ?? "pending"}</span>
           </div>
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-rise-surface-2">
             <div className="h-full bg-rise-gold w-full" />
@@ -111,12 +115,12 @@ export default function LogsPage() {
           <div className="flex items-center justify-between text-xs">
             <span className="font-mono text-rise-muted">Telegram Bot API</span>
             <span className="rounded-full bg-emerald-500/10 border border-emerald-500/30 px-2 py-0.5 font-mono text-[10px] text-emerald-400 font-semibold">
-              ● CONNECTED
+              ● {status?.telegram.configured ? "CONFIGURED" : "NOT SET"}
             </span>
           </div>
           <div className="flex items-baseline justify-between">
             <span className="font-mono text-2xl font-bold text-rise-text">@rcstudiobot</span>
-            <span className="font-mono text-xs text-blue-400 font-medium">Webhook OK</span>
+            <span className="font-mono text-xs text-blue-400 font-medium">{status?.telegram.configured ? "Credentials loaded" : "Awaiting env"}</span>
           </div>
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-rise-surface-2">
             <div className="h-full bg-blue-400 w-full" />

@@ -9,8 +9,10 @@ import {
   type Role,
   type Ticket,
   type TicketStatus,
+  type UserProfile,
+  getRankFromXP,
 } from "@rcs/shared";
-import { ApiError, createTicket, listTickets, transitionTicket } from "@/lib/api";
+import { ApiError, createTicket, getLeaderboard, listTickets, transitionTicket } from "@/lib/api";
 import { loadSession } from "@/lib/session";
 import { useToast } from "@/components/ToastProvider";
 
@@ -34,6 +36,7 @@ export default function BoardPage() {
   const [role, setRole] = useState<Role | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [leaders, setLeaders] = useState<readonly UserProfile[]>([]);
   const { toast } = useToast();
 
   const refresh = useCallback(async () => {
@@ -55,7 +58,10 @@ export default function BoardPage() {
     const session = loadSession();
     setLoggedIn(session !== null);
     setRole(session?.user.role ?? null);
-    if (session !== null) void refresh();
+    if (session !== null) {
+      void refresh();
+      void getLeaderboard().then((result) => setLeaders(result.entries)).catch(() => setLeaders([]));
+    }
     else setLoading(false);
   }, [refresh]);
 
@@ -150,55 +156,25 @@ export default function BoardPage() {
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-3">
-          <div className="rounded-lg border border-rise-border bg-rise-bg p-3.5 flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rise-gold/20 text-rise-gold text-lg font-bold">
-              🥇
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-sm text-rise-text truncate">Pai Htoo Khant</span>
-                <span className="font-mono text-xs text-rise-gold font-bold">12,400 XP</span>
-              </div>
-              <p className="text-[11px] text-rise-muted font-mono">Legend • Admin Lead</p>
-              <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-rise-surface-2">
-                <div className="h-full bg-rise-gold w-full" />
-              </div>
-            </div>
+        {leaders.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-rise-border p-4 text-sm text-rise-muted">No Season 1 XP has been recorded yet.</p>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-3">
+            {leaders.slice(0, 3).map((leader, index) => {
+              const xp = leader.xp ?? 0;
+              return (
+                <div key={leader.id} className="rounded-lg border border-rise-border bg-rise-bg p-3.5 flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rise-accent/15 text-lg">{["🥇", "🥈", "🥉"][index]}</div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2"><span className="truncate text-sm font-semibold">{leader.name}</span><span className="font-mono text-xs font-bold text-rise-accent">{xp.toLocaleString()} XP</span></div>
+                    <p className="text-[11px] text-rise-muted font-mono">{getRankFromXP(xp)} • {leader.role}</p>
+                    <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-rise-surface-2"><div className="h-full bg-rise-accent" style={{ width: `${Math.min(100, xp / 100)}%` }} /></div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-
-          <div className="rounded-lg border border-rise-border bg-rise-bg p-3.5 flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rise-accent/20 text-rise-accent text-lg font-bold">
-              🥈
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-sm text-rise-text truncate">Filip</span>
-                <span className="font-mono text-xs text-rise-accent font-bold">8,900 XP</span>
-              </div>
-              <p className="text-[11px] text-rise-muted font-mono">Lead • Tech Co-Founder</p>
-              <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-rise-surface-2">
-                <div className="h-full bg-rise-accent w-[89%]" />
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-lg border border-rise-border bg-rise-bg p-3.5 flex items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-500/20 text-blue-400 text-lg font-bold">
-              🥉
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-sm text-rise-text truncate">Shayy</span>
-                <span className="font-mono text-xs text-blue-400 font-bold">7,800 XP</span>
-              </div>
-              <p className="text-[11px] text-rise-muted font-mono">Lead • Co-Founder</p>
-              <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-rise-surface-2">
-                <div className="h-full bg-blue-400 w-[78%]" />
-              </div>
-            </div>
-          </div>
-        </div>
+        )}
       </section>
       {tickets.length === 0 && (
         <p className="rounded border border-rise-border bg-rise-surface px-4 py-3 text-sm text-rise-muted">

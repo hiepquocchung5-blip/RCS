@@ -253,6 +253,14 @@ export interface SystemLogEntry {
   createdAt: string;
 }
 
+export interface OperationsStatus {
+  generatedAt: string;
+  api: { status: "online"; uptimeSeconds: number; memoryRssBytes: number; heapUsedBytes: number };
+  storage: { status: "online" | "unavailable"; driver: "postgres" | "memory" | "unavailable" };
+  redis: { status: string };
+  telegram: { configured: boolean };
+}
+
 // ---------------------------------------------------------------------------
 // Chat protocol (browser <-> API) — JWT-authenticated, strictly siloed rooms.
 // Channel ids: "project:<projectId>" (team members + admin/pm only),

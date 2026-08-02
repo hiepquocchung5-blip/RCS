@@ -13,6 +13,7 @@ import type {
   StockShare,
   StockTransaction,
   ProjectProposal,
+  OperationsStatus,
 } from "@rcs/shared";
 import { loadSession } from "./session";
 
@@ -361,6 +362,14 @@ export function listChatChannels(): Promise<{ channels: ChatChannel[] }> {
 
 export function listLogs(): Promise<{ logs: SystemLogEntry[] }> {
   return request("/logs", { auth: true });
+}
+
+export function getOperationsStatus(): Promise<OperationsStatus> {
+  return request("/operations/status", { auth: true });
+}
+
+export function getLeaderboard(): Promise<{ season: number; entries: UserProfile[] }> {
+  return request("/leaderboard", { auth: true });
 }
 
 // -- stock ---------------------------------------------------------------------

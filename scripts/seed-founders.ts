@@ -1,62 +1,45 @@
 import { Store } from "../apps/api/src/store.js";
 import { loadConfig } from "../apps/api/src/config.js";
+import { generatePassword } from "../apps/api/src/auth/password.js";
 
-const FOUNDERS = [
-  {
-    name: "Filip",
-    email: "filip@risecorestudio.com",
-    password: "NgbkRD@5Q92pS8}K",
-  },
-  {
-    name: "Shayy",
-    email: "shayy@risecorestudio.com",
-    password: "vF)CfXw>sA2T>*3Z",
-  },
-  {
-    name: "Pai Htoo Khant",
-    email: "paihtookhant@risecorestudio.com",
-    password: "82Ewc%QGf6Sq-*ms",
-  },
-];
-
-async function main() {
+/**
+ * Idempotently creates founders from RCS_FOUNDERS (Name:email pairs).
+ * Passwords are generated at runtime, printed once, and only their hashes are
+ * persisted. Existing accounts are deliberately left untouched.
+ */
+async function main(): Promise<void> {
   const config = loadConfig();
+  if (!config.databaseUrl) throw new Error("DATABASE_URL is required for founder seeding");
+  const entries = (process.env.RCS_FOUNDERS ?? "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+  if (entries.length === 0) throw new Error("RCS_FOUNDERS must contain Name:email pairs");
+
   const store = new Store(config.jwtSecret, config.databaseUrl);
   await store.init();
-
-  console.log("Seeding founder admin accounts...");
-
-  for (const founder of FOUNDERS) {
-    const existing = await store.findUserByEmail(founder.email);
-    if (existing) {
-      await store.changePassword(existing.id, founder.password, founder.password).catch(() => {});
-      // Force update password_hash directly if old password changed
-      const { hashPassword } = await import("../apps/api/src/security/credentials.js");
-      const hash = hashPassword(founder.password);
-      if (store["pool"]) {
-        await store["pool"].query(
-          `UPDATE users SET password_hash = $1, role = 'admin' WHERE email = $2`,
-          [hash, founder.email]
-        );
+  try {
+    for (const entry of entries) {
+      const separator = entry.indexOf(":");
+      if (separator < 1) throw new Error(`Invalid founder entry: ${entry}`);
+      const name = entry.slice(0, separator).trim();
+      const email = entry.slice(separator + 1).trim().toLowerCase();
+      if (!email.includes("@")) throw new Error(`Invalid founder email: ${email}`);
+      if (await store.findUserByEmail(email)) {
+        console.log(`[founder-seed] Existing account retained: ${name} <${email}>`);
+        continue;
       }
-      console.log(`[founder-seed] Updated existing founder: ${founder.name} (${founder.email})`);
-    } else {
-      await store.createUser({
-        email: founder.email,
-        name: founder.name,
-        role: "admin",
-        skillLevel: "senior",
-        password: founder.password,
-      });
-      console.log(`[founder-seed] Created new founder: ${founder.name} (${founder.email})`);
+      const password = generatePassword();
+      await store.createUser({ email, name, role: "admin", skillLevel: "senior", password });
+      await store.log("api", "founder_seeded", `Founder account provisioned for ${name} (${email})`);
+      console.log(`[founder-seed] Created ${name} <${email}>; one-time password: ${password}`);
     }
+  } finally {
+    await store.close();
   }
-
-  console.log("All founder accounts seeded successfully!");
-  process.exit(0);
 }
 
-main().catch((err) => {
-  console.error("Failed to seed founder accounts:", err);
-  process.exit(1);
+main().catch((error: unknown) => {
+  console.error("Founder seed failed:", error instanceof Error ? error.message : error);
+  process.exitCode = 1;
 });
