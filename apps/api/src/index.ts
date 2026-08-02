@@ -13,6 +13,7 @@ import { projectRoutes } from "./routes/projects.js";
 import { orderRoutes } from "./routes/orders.js";
 import { webhookRoutes } from "./routes/webhooks.js";
 import { stockRoutes } from "./routes/stock.js";
+import { proposalRoutes } from "./routes/proposals.js";
 import { requireAuth, requireRole, errorHandler } from "./middleware.js";
 import { rateLimit } from "./middleware/rate-limit.js";
 import { verifyToken } from "./auth/tokens.js";

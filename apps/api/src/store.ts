@@ -19,6 +19,7 @@ import {
   type UserProfile,
   type StockShare,
   type StockTransaction,
+  type ProjectProposal,
 } from "@rcs/shared";
 import { randomBytes } from "node:crypto";
 import { Pool } from "pg";
@@ -48,6 +49,7 @@ export class Store {
   private readonly tickets = new Map<string, Ticket>();
   private readonly projects = new Map<string, Project>();
   private readonly orders = new Map<string, ClientOrder>();
+  private readonly proposals = new Map<string, ProjectProposal>();
   private readonly logs: SystemLogEntry[] = [];
   private readonly magicLinks = new Map<string, MagicLink>();
   private readonly mockReactions = new Map<string, Map<string, Set<string>>>();
@@ -1119,5 +1121,128 @@ export class Store {
       this.mockTransactions.unshift(entry);
     }
     return entry;
+  }
+
+  // -- developer project proposals -------------------------------------------
+
+  async createProposal(input: {
+    title: string;
+    description: string;
+    projectType: ProjectType;
+    techStack: string[];
+    proposerId: string;
+    proposerName: string;
+  }): Promise<ProjectProposal> {
+    const proposal: ProjectProposal = {
+      id: randomUUID(),
+      title: input.title,
+      description: input.description,
+      projectType: input.projectType,
+      techStack: input.techStack,
+      proposerId: input.proposerId,
+      proposerName: input.proposerName,
+      status: "pending",
+      createdAt: new Date().toISOString(),
+    };
+    if (this.pool) {
+      await this.pool.query(
+        `INSERT INTO project_proposals (id, title, description, project_type, tech_stack, proposer_id, proposer_name, status, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [
+          proposal.id,
+          proposal.title,
+          proposal.description,
+          proposal.projectType,
+          proposal.techStack,
+          proposal.proposerId,
+          proposal.proposerName,
+          proposal.status,
+          proposal.createdAt,
+        ]
+      );
+    } else {
+      this.proposals.set(proposal.id, proposal);
+    }
+    return proposal;
+  }
+
+  async listProposals(proposerId?: string): Promise<readonly ProjectProposal[]> {
+    if (this.pool) {
+      const query = proposerId
+        ? `SELECT id, title, description, project_type as "projectType", tech_stack as "techStack", proposer_id as "proposerId", proposer_name as "proposerName", status, created_at as "createdAt" FROM project_proposals WHERE proposer_id = $1 ORDER BY created_at DESC`
+        : `SELECT id, title, description, project_type as "projectType", tech_stack as "techStack", proposer_id as "proposerId", proposer_name as "proposerName", status, created_at as "createdAt" FROM project_proposals ORDER BY created_at DESC`;
+      const res = await this.pool.query(query, proposerId ? [proposerId] : []);
+      return res.rows.map((r) => ({
+        ...r,
+        createdAt: new Date(r.createdAt).toISOString(),
+      }));
+    }
+    const all = [...this.proposals.values()];
+    return proposerId ? all.filter((p) => p.proposerId === proposerId) : all;
+  }
+
+  async getProposal(id: string): Promise<ProjectProposal | undefined> {
+    if (this.pool) {
+      const res = await this.pool.query(
+        `SELECT id, title, description, project_type as "projectType", tech_stack as "techStack", proposer_id as "proposerId", proposer_name as "proposerName", status, created_at as "createdAt" FROM project_proposals WHERE id = $1`,
+        [id]
+      );
+      if (res.rowCount === 0) return undefined;
+      const r = res.rows[0];
+      return { ...r, createdAt: new Date(r.createdAt).toISOString() };
+    }
+    return this.proposals.get(id);
+  }
+
+  async approveProposal(id: string): Promise<{ project: Project; proposal: ProjectProposal } | undefined> {
+    const proposal = await this.getProposal(id);
+    if (!proposal || proposal.status !== "pending") return undefined;
+
+    let updatedProposal: ProjectProposal;
+    if (this.pool) {
+      const res = await this.pool.query(
+        `UPDATE project_proposals SET status = 'approved' WHERE id = $1 RETURNING id, title, description, project_type as "projectType", tech_stack as "techStack", proposer_id as "proposerId", proposer_name as "proposerName", status, created_at as "createdAt"`,
+        [id]
+      );
+      const r = res.rows[0];
+      updatedProposal = { ...r, createdAt: new Date(r.createdAt).toISOString() };
+    } else {
+      updatedProposal = { ...proposal, status: "approved" };
+      this.proposals.set(id, updatedProposal);
+    }
+
+    // Convert proposal to project
+    const project = await this.createProject({
+      name: proposal.title,
+      type: proposal.projectType,
+      description: proposal.description,
+      clientName: `Internal Idea (${proposal.proposerName})`,
+      isPublic: true,
+      techStack: proposal.techStack,
+      resourceMatrix: [],
+    });
+
+    // Automatically assign proposer to team
+    await this.assignTeamMember(project.id, proposal.proposerId);
+    const refreshedProject = (await this.getProject(project.id)) || project;
+
+    return { project: refreshedProject, proposal: updatedProposal };
+  }
+
+  async rejectProposal(id: string): Promise<ProjectProposal | undefined> {
+    const proposal = await this.getProposal(id);
+    if (!proposal || proposal.status !== "pending") return undefined;
+
+    if (this.pool) {
+      const res = await this.pool.query(
+        `UPDATE project_proposals SET status = 'rejected' WHERE id = $1 RETURNING id, title, description, project_type as "projectType", tech_stack as "techStack", proposer_id as "proposerId", proposer_name as "proposerName", status, created_at as "createdAt"`,
+        [id]
+      );
+      const r = res.rows[0];
+      return { ...r, createdAt: new Date(r.createdAt).toISOString() };
+    }
+    const updated: ProjectProposal = { ...proposal, status: "rejected" };
+    this.proposals.set(id, updated);
+    return updated;
   }
 }

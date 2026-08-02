@@ -12,6 +12,7 @@ import type {
   UserProfile,
   StockShare,
   StockTransaction,
+  ProjectProposal,
 } from "@rcs/shared";
 import { loadSession } from "./session";
 
@@ -285,6 +286,29 @@ export function createMilestone(projectId: string, input: { title: string; dueDa
 
 export function updateProjectDelivery(projectId: string, input: { deadline?: string | null; ownerId?: string | null; health?: string }): Promise<{ project: Project }> {
   return request(`/projects/${projectId}/delivery`, { method: "POST", body: input, auth: true });
+}
+
+// -- developer project proposals -------------------------------------------
+
+export function listProposals(): Promise<{ proposals: ProjectProposal[] }> {
+  return request("/proposals", { auth: true });
+}
+
+export function submitProposal(input: {
+  title: string;
+  description: string;
+  projectType: string;
+  techStack: string[];
+}): Promise<{ proposal: ProjectProposal }> {
+  return request("/proposals", { method: "POST", body: input, auth: true });
+}
+
+export function approveProposal(id: string): Promise<{ project: Project; proposal: ProjectProposal }> {
+  return request(`/proposals/${id}/approve`, { method: "POST", auth: true });
+}
+
+export function rejectProposal(id: string): Promise<{ proposal: ProjectProposal }> {
+  return request(`/proposals/${id}/reject`, { method: "POST", auth: true });
 }
 
 // -- public client portal --------------------------------------------------------

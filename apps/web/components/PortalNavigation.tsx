@@ -16,6 +16,7 @@ const PUBLIC_LINKS = [
 const PORTAL_LINKS = [
   { href: "/projects", label: "Projects", resolver: "auth" as const },
   { href: "/board", label: "Delivery Board", resolver: "auth" as const },
+  { href: "/proposals", label: "Proposals", resolver: "auth" as const },
 ] as const;
 
 type NavLink = { href: string; label: string; resolver: "auth" | "stock" | null };
