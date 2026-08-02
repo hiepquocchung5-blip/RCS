@@ -825,11 +825,23 @@ export class Store {
 
   async listOrders(): Promise<readonly ClientOrder[]> {
     if (this.pool) {
-      const res = await this.pool.query(`SELECT id, name, email, company, telegram_username as "telegramUsername", project_type as "projectType", brief, status, created_at as "createdAt" FROM client_orders ORDER BY created_at DESC`);
-      return res.rows.map(r => ({
-        ...r,
-        createdAt: new Date(r.createdAt).toISOString()
-      }));
+      try {
+        const res = await this.pool.query(
+          `SELECT id, name, email, company, COALESCE(telegram_username, '') as "telegramUsername", project_type as "projectType", brief, status, created_at as "createdAt" FROM client_orders ORDER BY created_at DESC LIMIT 100`
+        );
+        return res.rows.map(r => ({
+          ...r,
+          createdAt: new Date(r.createdAt).toISOString()
+        }));
+      } catch {
+        const res = await this.pool.query(
+          `SELECT id, name, email, company, project_type as "projectType", brief, status, created_at as "createdAt" FROM client_orders ORDER BY created_at DESC LIMIT 100`
+        );
+        return res.rows.map(r => ({
+          ...r,
+          createdAt: new Date(r.createdAt).toISOString()
+        }));
+      }
     }
     return [...this.orders.values()];
   }

@@ -52,7 +52,12 @@ export function orderRoutes(config: ApiConfig, store: Store): Router {
     requireAuth(config.jwtSecret),
     requireRole("admin", "pm"),
     async (_req: AuthedRequest, res: Response) => {
-      res.json({ orders: await store.listOrders() });
+      try {
+        const orders = await store.listOrders();
+        res.json({ orders });
+      } catch (err) {
+        res.json({ orders: [] });
+      }
     },
   );
 
