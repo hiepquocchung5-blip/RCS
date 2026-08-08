@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHmac, randomUUID } from "node:crypto";
 import {
   TICKET_NEXT_STATUS,
   type ChatMessage,
@@ -8,6 +8,7 @@ import {
   type ProjectType,
   type ProjectHealth,
   type Milestone,
+  type MilestoneCertificate,
   type ResourceRequirement,
   type Role,
   type ShowcaseProject,
@@ -52,6 +53,7 @@ export class Store {
   private readonly proposals = new Map<string, ProjectProposal>();
   private readonly logs: SystemLogEntry[] = [];
   private readonly magicLinks = new Map<string, MagicLink>();
+  private readonly milestoneCertificates = new Map<string, MilestoneCertificate>();
   private readonly mockReactions = new Map<string, Map<string, Set<string>>>();
   private readonly chatMessages = new Map<string, ChatMessage[]>();
   private readonly mockShares: StockShare[] = [
@@ -810,6 +812,122 @@ export class Store {
     }
   }
 
+  private certificateSignature(certificate: Omit<MilestoneCertificate, "signature">): string {
+    const canonical = [
+      certificate.id,
+      certificate.verificationId,
+      certificate.projectId,
+      certificate.projectName,
+      certificate.milestoneId,
+      certificate.milestoneTitle,
+      certificate.clientName,
+      certificate.signedOffBy,
+      certificate.signedOffByName,
+      certificate.signedAt,
+    ].join("\n");
+    return createHmac("sha256", this.credentialSecret).update(canonical).digest("hex");
+  }
+
+  async signOffMilestone(
+    projectId: string,
+    milestoneId: string,
+    signer: { id: string; name: string },
+  ): Promise<{ certificate: MilestoneCertificate; created: boolean } | undefined> {
+    const project = await this.getProject(projectId);
+    const milestone = project?.milestones.find((item) => item.id === milestoneId);
+    if (!project || !milestone) return undefined;
+
+    const existing = await this.getMilestoneCertificateByMilestone(milestoneId);
+    if (existing) return { certificate: existing, created: false };
+
+    const unsigned: Omit<MilestoneCertificate, "signature"> = {
+      id: randomUUID(),
+      verificationId: randomUUID(),
+      projectId,
+      projectName: project.name,
+      milestoneId,
+      milestoneTitle: milestone.title,
+      clientName: project.clientName,
+      signedOffBy: signer.id,
+      signedOffByName: signer.name,
+      signedAt: new Date().toISOString(),
+    };
+    const certificate: MilestoneCertificate = { ...unsigned, signature: this.certificateSignature(unsigned) };
+
+    if (this.pool) {
+      const client = await this.pool.connect();
+      try {
+        await client.query("BEGIN");
+        const result = await client.query(
+          `INSERT INTO milestone_certificates
+           (id, verification_id, project_id, milestone_id, project_name, milestone_title, client_name, signed_off_by, signed_off_by_name, signed_at, signature)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+           ON CONFLICT (milestone_id) DO NOTHING
+           RETURNING id`,
+          [certificate.id, certificate.verificationId, certificate.projectId, certificate.milestoneId, certificate.projectName, certificate.milestoneTitle, certificate.clientName, certificate.signedOffBy, certificate.signedOffByName, certificate.signedAt, certificate.signature],
+        );
+        if (result.rowCount === 0) {
+          await client.query("ROLLBACK");
+          const raced = await this.getMilestoneCertificateByMilestone(milestoneId);
+          return raced ? { certificate: raced, created: false } : undefined;
+        }
+        await client.query(`UPDATE milestones SET status = 'complete' WHERE id = $1 AND project_id = $2`, [milestoneId, projectId]);
+        await client.query("COMMIT");
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      } finally {
+        client.release();
+      }
+    } else {
+      this.milestoneCertificates.set(milestoneId, certificate);
+      this.projects.set(projectId, {
+        ...project,
+        milestones: project.milestones.map((item) => item.id === milestoneId ? { ...item, status: "complete" } : item),
+      });
+    }
+    return { certificate, created: true };
+  }
+
+  async getMilestoneCertificateByMilestone(milestoneId: string): Promise<MilestoneCertificate | undefined> {
+    if (this.pool) {
+      const result = await this.pool.query(
+        `SELECT id, verification_id as "verificationId", project_id as "projectId", project_name as "projectName",
+                milestone_id as "milestoneId", milestone_title as "milestoneTitle", client_name as "clientName",
+                signed_off_by as "signedOffBy", signed_off_by_name as "signedOffByName",
+                signed_at as "signedAt", signature
+         FROM milestone_certificates WHERE milestone_id = $1`,
+        [milestoneId],
+      );
+      if (result.rowCount === 0) return undefined;
+      const row = result.rows[0];
+      return { ...row, signedAt: new Date(row.signedAt).toISOString() } as MilestoneCertificate;
+    }
+    return this.milestoneCertificates.get(milestoneId);
+  }
+
+  async verifyMilestoneCertificate(verificationId: string): Promise<{ valid: boolean; certificate: MilestoneCertificate } | undefined> {
+    let certificate: MilestoneCertificate | undefined;
+    if (this.pool) {
+      const result = await this.pool.query(
+        `SELECT id, verification_id as "verificationId", project_id as "projectId", project_name as "projectName",
+                milestone_id as "milestoneId", milestone_title as "milestoneTitle", client_name as "clientName",
+                signed_off_by as "signedOffBy", signed_off_by_name as "signedOffByName",
+                signed_at as "signedAt", signature
+         FROM milestone_certificates WHERE verification_id = $1`,
+        [verificationId],
+      );
+      if (result.rowCount === 0) return undefined;
+      const row = result.rows[0];
+      certificate = { ...row, signedAt: new Date(row.signedAt).toISOString() } as MilestoneCertificate;
+    } else {
+      certificate = [...this.milestoneCertificates.values()].find((item) => item.verificationId === verificationId);
+    }
+    if (!certificate) return undefined;
+    const { signature, ...unsigned } = certificate;
+    return { certificate, valid: signature === this.certificateSignature(unsigned) };
+  }
+
   // -- client orders ------------------------------------------------------------
 
   async createOrder(input: {
@@ -906,6 +1024,14 @@ export class Store {
     const updated: ClientOrder = { ...order, status: "converted" };
     this.orders.set(id, updated);
     return updated;
+  }
+
+  async deleteOrder(id: string): Promise<boolean> {
+    if (this.pool) {
+      const res = await this.pool.query(`DELETE FROM client_orders WHERE id = $1`, [id]);
+      return (res.rowCount ?? 0) > 0;
+    }
+    return this.orders.delete(id);
   }
 
   // -- chat history -------------------------------------------------------------

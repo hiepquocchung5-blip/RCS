@@ -117,6 +117,20 @@ export interface Milestone {
   createdAt: string;
 }
 
+export interface MilestoneCertificate {
+  id: string;
+  verificationId: string;
+  projectId: string;
+  projectName: string;
+  milestoneId: string;
+  milestoneTitle: string;
+  clientName: string;
+  signedOffBy: string;
+  signedOffByName: string;
+  signedAt: string;
+  signature: string;
+}
+
 export interface Project {
   id: string;
   name: string;

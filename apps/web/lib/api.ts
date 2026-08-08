@@ -4,6 +4,7 @@ import type {
   DeveloperApplication,
   Project,
   Milestone,
+  MilestoneCertificate,
   ResourceRequirement,
   ShowcaseProject,
   SystemLogEntry,
@@ -88,7 +89,7 @@ export function fieldErrorsFrom(error: unknown): Record<string, string> | null {
 
 async function request<T>(
   path: string,
-  init?: { method?: "GET" | "POST"; body?: unknown; auth?: boolean },
+  init?: { method?: "GET" | "POST" | "PUT" | "DELETE" | "PATCH"; body?: unknown; auth?: boolean },
 ): Promise<T> {
   const headers: Record<string, string> = {};
   if (init?.body !== undefined) headers["content-type"] = "application/json";
@@ -285,6 +286,18 @@ export function createMilestone(projectId: string, input: { title: string; dueDa
   return request(`/projects/${projectId}/milestones`, { method: "POST", body: input, auth: true });
 }
 
+export function getMilestoneCertificate(projectId: string, milestoneId: string): Promise<{ certificate: MilestoneCertificate }> {
+  return request(`/projects/${projectId}/milestones/${milestoneId}/certificate`, { auth: true });
+}
+
+export function signOffMilestone(projectId: string, milestoneId: string): Promise<{ certificate: MilestoneCertificate; created: boolean }> {
+  return request(`/projects/${projectId}/milestones/${milestoneId}/sign-off`, { method: "POST", body: { confirmation: "approve" }, auth: true });
+}
+
+export function verifyMilestoneCertificate(verificationId: string): Promise<{ valid: boolean; certificate: MilestoneCertificate }> {
+  return request(`/certificates/${verificationId}`);
+}
+
 export function updateProjectDelivery(projectId: string, input: { deadline?: string | null; ownerId?: string | null; health?: string }): Promise<{ project: Project }> {
   return request(`/projects/${projectId}/delivery`, { method: "POST", body: input, auth: true });
 }
@@ -350,6 +363,10 @@ export function reviewOrder(id: string): Promise<{ order: ClientOrder }> {
 
 export function convertOrder(id: string): Promise<{ project: Project }> {
   return request(`/orders/${id}/convert`, { method: "POST", auth: true });
+}
+
+export function deleteOrder(id: string): Promise<{ success: boolean; id: string }> {
+  return request(`/orders/${id}`, { method: "DELETE", auth: true });
 }
 
 // -- chat --------------------------------------------------------------------

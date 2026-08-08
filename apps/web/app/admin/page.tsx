@@ -13,6 +13,7 @@ import {
   listOrders,
   reviewOrder,
   convertOrder,
+  deleteOrder,
 } from "@/lib/api";
 import { loadSession } from "@/lib/session";
 import { useToast } from "@/components/ToastProvider";
@@ -92,6 +93,16 @@ export default function AdminPage() {
     }
   }
 
+  async function removeOrder(orderId: string): Promise<void> {
+    try {
+      await deleteOrder(orderId);
+      toast("info", `Request ${orderId.slice(0, 8)} deleted.`);
+      await refresh();
+    } catch (error) {
+      toast("error", error instanceof Error ? error.message : "failed to delete request");
+    }
+  }
+
   if (denied !== null) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3">
@@ -118,37 +129,89 @@ export default function AdminPage() {
         <p className="font-mono text-xs uppercase tracking-[0.3em] text-rise-accent">Operations</p>
         <h1 className="font-display mt-2 text-4xl">Administration</h1>
         <p className="mt-2 max-w-2xl text-sm leading-relaxed text-rise-muted">
-          Review verified applications, provision access and maintain a clear view of the delivery team.
+          Review verified applications, provision access, manage client requests (CRUD) and maintain a clear view of the delivery team.
         </p>
       </header>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-4">
         <AdminSummary label="Applications" value={applications.length} />
         <AdminSummary label="Awaiting decision" value={applications.filter((app) => app.status === "otp_verified").length} />
+        <AdminSummary label="Client Requests" value={orders.length} />
         <AdminSummary label="Active profiles" value={users.length} />
       </div>
-      <section>
-        <h2 className="text-xl font-semibold">Client requests</h2>
-        <p className="mb-3 text-sm text-rise-muted">Review qualified briefs, then convert them into a project without re-entering client context.</p>
+
+      {/* Client Requests Management Section (CRUD) */}
+      <section className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-rise-border/40 pb-3">
+          <div>
+            <h2 className="text-xl font-semibold">Client Requests & Orders</h2>
+            <p className="text-xs text-rise-muted">
+              Full CRUD management: review client briefs, convert qualified requests into projects, or prune obsolete entries.
+            </p>
+          </div>
+          <Link
+            href="/request"
+            className="rounded-full bg-rise-accent px-4 py-1.5 text-xs font-semibold text-rise-bg transition-transform hover:scale-105"
+          >
+            + Create New Client Brief
+          </Link>
+        </div>
+
         <div className="space-y-3">
-          {orders.length === 0 ? <p className="rounded-xl border border-rise-border bg-rise-surface p-4 text-sm text-rise-muted">No client requests yet.</p> : orders.map((order) => (
-            <article key={order.id} className="rounded-xl border border-rise-border bg-rise-surface p-4">
-              <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="font-medium">{order.company || order.name}</h3>
-                    <span className="rounded-full bg-rise-surface-2 px-2 py-0.5 text-[10px] uppercase text-rise-muted">{order.status}</span>
+          {orders.length === 0 ? (
+            <p className="rounded-xl border border-rise-border bg-rise-surface p-4 text-sm text-rise-muted">
+              No client requests yet.
+            </p>
+          ) : (
+            orders.map((order) => (
+              <article key={order.id} className="rounded-xl border border-rise-border bg-rise-surface p-5 space-y-3 shadow-md">
+                <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-bold text-lg text-rise-text">{order.company || order.name}</h3>
+                      <span className={`rounded-full px-2.5 py-0.5 font-mono text-[10px] uppercase font-semibold ${
+                        order.status === "converted"
+                          ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+                          : order.status === "reviewed"
+                          ? "bg-blue-500/15 text-blue-400 border border-blue-500/30"
+                          : "bg-amber-500/15 text-amber-400 border border-amber-500/30"
+                      }`}>
+                        {order.status}
+                      </span>
+                      <span className="rounded bg-rise-surface-2 px-2 py-0.5 font-mono text-[10px] text-rise-accent">
+                        {order.projectType}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-rise-muted font-mono">
+                      Client: <strong className="text-rise-text">{order.name}</strong> ({order.email})
+                      {order.telegramUsername && <span className="ml-2 text-rise-gold">Telegram: {order.telegramUsername}</span>}
+                    </p>
+                    <p className="mt-3 max-w-3xl text-xs leading-relaxed text-rise-muted bg-rise-surface-2 p-3 rounded-lg border border-rise-border/40">
+                      {order.brief}
+                    </p>
                   </div>
-                  <p className="mt-1 text-xs text-rise-muted">{order.name} · {order.email}</p>
-                  <p className="mt-3 max-w-3xl text-sm leading-relaxed text-rise-muted">{order.brief}</p>
+
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    {order.status !== "converted" && (
+                      <button
+                        type="button"
+                        onClick={() => void advanceOrder(order)}
+                        className="rounded-full bg-rise-accent/15 border border-rise-accent/40 px-3 py-1.5 text-xs font-semibold text-rise-accent hover:bg-rise-accent hover:text-rise-bg transition-colors"
+                      >
+                        {order.status === "new" ? "Mark Reviewed" : "Convert → Project"}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => void removeOrder(order.id)}
+                      className="rounded-full border border-rose-500/40 px-3 py-1.5 text-xs font-semibold text-rose-400 hover:bg-rose-500/10 transition-colors"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 </div>
-                {order.status !== "converted" && (
-                  <button type="button" onClick={() => void advanceOrder(order)} className="shrink-0 rounded-full border border-rise-accent px-3 py-1.5 text-xs text-rise-accent hover:bg-rise-accent hover:text-rise-bg">
-                    {order.status === "new" ? "Mark reviewed" : "Create project"}
-                  </button>
-                )}
-              </div>
-            </article>
-          ))}
+              </article>
+            ))
+          )}
         </div>
       </section>
       <section>

@@ -116,5 +116,25 @@ export function orderRoutes(config: ApiConfig, store: Store): Router {
     },
   );
 
+  router.delete(
+    "/:id",
+    requireAuth(config.jwtSecret),
+    requireRole("admin", "pm"),
+    async (req: AuthedRequest, res: Response) => {
+      const id = req.params.id;
+      if (!id) {
+        res.status(400).json({ error: "order id required" });
+        return;
+      }
+      const deleted = await store.deleteOrder(id);
+      if (!deleted) {
+        res.status(404).json({ error: "order not found" });
+        return;
+      }
+      await store.log("user", "order_deleted", `${req.session?.email ?? "unknown"} deleted order ${id}`);
+      res.json({ success: true, id });
+    },
+  );
+
   return router;
 }

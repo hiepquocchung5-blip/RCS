@@ -8,10 +8,11 @@ import {
   TICKET_STATUSES,
   type Project,
   type ProjectHealth,
+  type MilestoneCertificate,
   type Ticket,
   type TicketStatus,
 } from "@rcs/shared";
-import { ApiError, createMilestone, getProject, listTickets, updateProjectDelivery } from "@/lib/api";
+import { ApiError, createMilestone, getMilestoneCertificate, getProject, listTickets, signOffMilestone, updateProjectDelivery } from "@/lib/api";
 import { ChatPanel } from "@/components/ChatPanel";
 import { loadSession } from "@/lib/session";
 import { useToast } from "@/components/ToastProvider";
@@ -36,6 +37,7 @@ export default function ProjectDetailPage() {
   const [milestoneTitle, setMilestoneTitle] = useState("");
   const [milestoneDate, setMilestoneDate] = useState("");
   const [saving, setSaving] = useState(false);
+  const [certificates, setCertificates] = useState<Record<string, MilestoneCertificate>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const { toast } = useToast();
   const session = loadSession();
@@ -51,6 +53,13 @@ export default function ProjectDetailPage() {
         setOwnerId(projectResult.project.ownerId ?? "");
         setHealth(projectResult.project.health);
         setTickets(ticketResult.tickets.filter((ticket) => ticket.projectId === params.id));
+        void Promise.all(projectResult.project.milestones.map(async (milestone) => {
+          try { return (await getMilestoneCertificate(projectResult.project.id, milestone.id)).certificate; }
+          catch { return null; }
+        })).then((items) => {
+          if (!active) return;
+          setCertificates(Object.fromEntries(items.filter((item): item is MilestoneCertificate => item !== null).map((item) => [item.milestoneId, item])));
+        });
       })
       .catch((reason: unknown) => {
         if (!active) return;
@@ -346,8 +355,8 @@ ${project.milestones.map((m) => `- [${m.status === "complete" ? "x" : " "}] **${
           {project.milestones.length === 0 ? (
             <p className="text-sm text-rise-muted">No milestones have been scheduled.</p>
           ) : project.milestones.map((milestone) => {
-            const isApproved = milestone.status === "complete";
-            const certHash = `RCS-CERT-${project.id.slice(0, 8)}-${milestone.id.slice(0, 6)}`.toUpperCase();
+            const certificate = certificates[milestone.id];
+            const isApproved = certificate !== undefined;
 
             return (
               <article key={milestone.id} className="rounded-xl border border-rise-border/80 bg-rise-surface-2 p-5 space-y-3 shadow-lg">
@@ -364,7 +373,8 @@ ${project.milestones.map((m) => `- [${m.status === "complete" ? "x" : " "}] **${
                 {isApproved && (
                   <div className="rounded-lg bg-black/40 p-3 font-mono text-[11px] border border-rise-gold/30 space-y-1">
                     <p className="text-rise-gold font-bold">📜 Cryptographic Hash:</p>
-                    <p className="text-rise-muted truncate">{certHash}</p>
+                    <p className="text-rise-muted break-all">{certificate.signature}</p>
+                    <p className="text-rise-muted">Signed by {certificate.signedOffByName}</p>
                   </div>
                 )}
 
@@ -372,28 +382,27 @@ ${project.milestones.map((m) => `- [${m.status === "complete" ? "x" : " "}] **${
                   {!isApproved ? (
                     <button
                       type="button"
-                      onClick={() => {
-                        setProject((current) =>
-                          current === null
-                            ? current
-                            : {
-                                ...current,
-                                milestones: current.milestones.map((m) =>
-                                  m.id === milestone.id ? { ...m, status: "complete" } : m
-                                ),
-                              }
-                        );
-                        toast("success", `Formal sign-off granted for milestone "${milestone.title}". Cryptographic Certificate generated!`);
+                      disabled={!canManage || saving}
+                      onClick={async () => {
+                        setSaving(true);
+                        try {
+                          const result = await signOffMilestone(project.id, milestone.id);
+                          setCertificates((current) => ({ ...current, [milestone.id]: result.certificate }));
+                          setProject((current) => current === null ? current : { ...current, milestones: current.milestones.map((item) => item.id === milestone.id ? { ...item, status: "complete" } : item) });
+                          toast("success", result.created ? `Milestone “${milestone.title}” was signed and certified.` : "The existing certificate was returned.");
+                        } catch (reason) {
+                          toast("error", reason instanceof Error ? reason.message : "Sign-off failed");
+                        } finally { setSaving(false); }
                       }}
                       className="w-full rounded-lg bg-rise-accent/15 border border-rise-accent/40 py-2 text-center text-xs font-semibold text-rise-accent hover:bg-rise-accent hover:text-rise-bg transition-colors"
                     >
-                      ✍️ Formal Client Sign-Off
+                      {canManage ? "✍️ Record Formal Sign-Off" : "Lead approval required"}
                     </button>
                   ) : (
                     <button
                       type="button"
                       onClick={() => {
-                        const certText = `=== RISE CORE STUDIO DIPLOMA ===\nProject: ${project.name}\nMilestone: ${milestone.title}\nClient: ${project.clientName || "RiseCore Client"}\nHash: ${certHash}\nDate: ${new Date().toISOString()}`;
+                        const certText = `=== RISE CORE STUDIO MILESTONE CERTIFICATE ===\nProject: ${certificate.projectName}\nMilestone: ${certificate.milestoneTitle}\nClient: ${certificate.clientName || "RiseCore Client"}\nSigned by: ${certificate.signedOffByName}\nSigned at: ${certificate.signedAt}\nVerification ID: ${certificate.verificationId}\nSignature: ${certificate.signature}\nVerify: ${window.location.origin}/certificates/${certificate.verificationId}`;
                         const blob = new Blob([certText], { type: "text/plain" });
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement("a");

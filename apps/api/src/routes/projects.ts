@@ -4,6 +4,7 @@ import type { Store } from "../store.js";
 import { requireAuth, requireRole, type AuthedRequest } from "../middleware.js";
 import {
   milestoneSchema,
+  milestoneSignOffSchema,
   projectDeliverySchema,
   createProjectSchema,
   assignTeamMemberSchema,
@@ -81,6 +82,54 @@ export function projectRoutes(config: ApiConfig, store: Store): Router {
         `${req.session?.email ?? "unknown"} scoped project "${project.name}" (${project.type}) with ${resourceMatrix.length} matrix rows`,
       );
       res.status(201).json({ project });
+    },
+  );
+
+  router.get("/:id/milestones/:milestoneId/certificate", async (req: AuthedRequest, res: Response) => {
+    const { id, milestoneId } = req.params;
+    const session = req.session;
+    if (!id || !milestoneId || !session) {
+      res.status(400).json({ error: "project and milestone ids are required" });
+      return;
+    }
+    const allowed = session.role === "admin" || session.role === "pm" || await store.isOnTeam(id, session.sub);
+    if (!allowed) {
+      res.status(403).json({ error: "project membership required" });
+      return;
+    }
+    const certificate = await store.getMilestoneCertificateByMilestone(milestoneId);
+    if (!certificate || certificate.projectId !== id) {
+      res.status(404).json({ error: "certificate not found" });
+      return;
+    }
+    res.json({ certificate });
+  });
+
+  router.post(
+    "/:id/milestones/:milestoneId/sign-off",
+    requireRole("admin", "pm"),
+    async (req: AuthedRequest, res: Response) => {
+      const { id, milestoneId } = req.params;
+      const session = req.session;
+      const parsed = milestoneSignOffSchema.safeParse(req.body);
+      if (!id || !milestoneId || !session || !parsed.success) {
+        res.status(400).json(parsed.success ? { error: "project and milestone ids are required" } : validationError(parsed.error));
+        return;
+      }
+      const signer = await store.getUser(session.sub);
+      if (!signer) {
+        res.status(401).json({ error: "signer account not found" });
+        return;
+      }
+      const result = await store.signOffMilestone(id, milestoneId, { id: signer.id, name: signer.name });
+      if (!result) {
+        res.status(404).json({ error: "project or milestone not found" });
+        return;
+      }
+      if (result.created) {
+        await store.log("user", "milestone_signed_off", `${session.email} signed off milestone "${result.certificate.milestoneTitle}" for "${result.certificate.projectName}"`);
+      }
+      res.status(result.created ? 201 : 200).json(result);
     },
   );
 

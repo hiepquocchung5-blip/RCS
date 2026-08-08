@@ -9,6 +9,7 @@ export const loginSchema = z.object({ email: z.string().trim().email().max(320),
 export const otpSchema = z.object({ applicationId: z.string().uuid(), otp: z.string().regex(/^\d{6}$/) }).strict();
 export const orderSchema = z.object({ name: z.string().trim().min(1).max(120), email: z.string().trim().email().max(320), company: z.string().trim().max(160).default(""), telegramUsername: z.string().trim().max(80).optional().default(""), projectType: z.enum(projectTypes), brief: z.string().trim().min(10).max(10_000) }).strict();
 export const milestoneSchema = z.object({ title: z.string().trim().min(1).max(200), dueDate: z.string().date() }).strict();
+export const milestoneSignOffSchema = z.object({ confirmation: z.literal("approve") }).strict();
 export const projectDeliverySchema = z.object({ deadline: z.string().date().nullable().optional(), ownerId: z.string().uuid().nullable().optional(), health: z.enum(["on_track", "at_risk", "blocked"]).optional() }).strict();
 
 export const resourceRequirementSchema = z.object({

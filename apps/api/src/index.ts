@@ -15,6 +15,7 @@ import { webhookRoutes } from "./routes/webhooks.js";
 import { stockRoutes } from "./routes/stock.js";
 import { proposalRoutes } from "./routes/proposals.js";
 import { telegramRoutes } from "./routes/telegram.js";
+import { certificateRoutes } from "./routes/certificates.js";
 import { requireAuth, requireRole, errorHandler } from "./middleware.js";
 import { rateLimit } from "./middleware/rate-limit.js";
 import { verifyToken } from "./auth/tokens.js";
@@ -152,11 +153,11 @@ if (process.env.RCS_SEED_DEMO === "true") {
 function isAllowedOrigin(origin: string): boolean {
   if (!origin) return true;
   if (config.webOrigins.includes(origin)) return true;
-  if (config.trustedDomain === null) return false;
   try {
     const url = new URL(origin);
     const host = url.hostname.toLowerCase();
-    const domain = config.trustedDomain.toLowerCase();
+    if (host === "localhost" || host === "127.0.0.1") return true;
+    const domain = (config.trustedDomain || "risecorestudio.com").toLowerCase();
     return host === domain || host.endsWith(`.${domain}`);
   } catch {
     return false;
@@ -168,7 +169,9 @@ app.use(cors({
   origin: (origin, callback) => {
     if (!origin || isAllowedOrigin(origin)) {
       callback(null, true);
-    } else callback(new Error("Origin is not allowed by RCS CORS policy"));
+    } else {
+      callback(null, false);
+    }
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
@@ -216,6 +219,7 @@ app.get("/leaderboard", requireAuth(config.jwtSecret), async (_req, res) => {
 });
 
 app.use("/auth", authRoutes(config, store, otpStore, mailer, redisClient));
+app.use("/certificates", certificateRoutes(store));
 app.use("/admin", adminRoutes(config, store, mailer));
 app.use("/tickets", ticketRoutes(config, store));
 app.use("/projects", projectRoutes(config, store));
