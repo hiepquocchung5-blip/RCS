@@ -105,18 +105,31 @@ export default function AdminPage() {
 
   if (denied !== null) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3">
-        <p className="text-rise-muted">Admin console: {denied}.</p>
-        <Link href="/login" className="text-rise-accent hover:underline">
-          Log in as Admin →
-        </Link>
+      <div className="flex min-h-[75vh] flex-col items-center justify-center p-6 text-center">
+        <div className="w-full max-w-md rounded-2xl border border-rise-border/80 bg-rise-surface p-8 shadow-2xl space-y-4">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-rise-accent/15 border border-rise-accent/30 text-2xl">
+            🔒
+          </div>
+          <h2 className="text-2xl font-bold text-rise-text">Admin Access Required</h2>
+          <p className="text-sm leading-relaxed text-rise-muted">
+            The Administration Console is restricted to Founder Admin accounts. ({denied})
+          </p>
+          <div className="pt-2">
+            <Link
+              href="/login"
+              className="inline-block w-full rounded-full bg-rise-accent py-2.5 text-sm font-semibold text-rise-bg transition-transform hover:scale-105 shadow-lg"
+            >
+              Sign In as Founder Admin →
+            </Link>
+          </div>
+        </div>
       </div>
     );
   }
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-6xl space-y-6 p-6 sm:p-8" aria-busy="true" aria-label="Loading administration">
+      <div className="mx-auto flex min-h-[75vh] max-w-6xl flex-col justify-center space-y-6 p-6 sm:p-8" aria-busy="true" aria-label="Loading administration">
         <div className="h-10 w-56 animate-pulse rounded bg-rise-surface-2" />
         <div className="h-64 animate-pulse rounded-xl border border-rise-border bg-rise-surface" />
       </div>
@@ -124,7 +137,7 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-8 p-6 sm:p-8">
+    <div className="mx-auto flex min-h-[80vh] max-w-6xl flex-col gap-8 p-6 sm:p-8">
       <header>
         <p className="font-mono text-xs uppercase tracking-[0.3em] text-rise-accent">Operations</p>
         <h1 className="font-display mt-2 text-4xl">Administration</h1>

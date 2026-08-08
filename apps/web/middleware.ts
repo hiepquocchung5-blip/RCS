@@ -71,22 +71,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // 4. Main domain (risecorestudio.com)
-  if (url.pathname.startsWith("/stock")) {
-    const stockPath = url.pathname.replace(/^\/stock/, "") || "/";
-    return NextResponse.redirect(new URL(stockPath, `https://${stockDomain}`));
-  }
-
-  const authPaths = ["/login", "/request", "/apply"];
-  if (authPaths.some((path) => url.pathname.startsWith(path))) {
-    return NextResponse.redirect(new URL(url.pathname, `https://${authDomain}`));
-  }
-
-  const devPaths = ["/projects", "/board", "/admin", "/logs", "/workspace", "/portal"];
-  if (devPaths.some((path) => url.pathname.startsWith(path))) {
-    return NextResponse.redirect(new URL(url.pathname, `https://${devDomain}`));
-  }
-
+  // 4. Main domain (risecorestudio.com) — Allow direct rendering of all routes
   return NextResponse.next();
 }
 
